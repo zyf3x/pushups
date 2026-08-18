@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Pushup Challenge</title>
+    <title>AI Pushup Challenge - Easy Mode</title>
     
-    <!-- MediaPipe Libraries (Removed camera_utils to use native, robust browser APIs instead) -->
+    <!-- MediaPipe Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
@@ -20,45 +20,53 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            width: 100vw;
         }
 
+        /* Top UI Header */
         #ui-container {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            padding: 20px;
+            padding: 15px 20px;
             box-sizing: border-box;
             z-index: 10;
             display: flex;
             justify-content: space-between;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            pointer-events: none;
         }
 
         .hud-box {
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.7);
             padding: 10px 15px;
-            border-radius: 10px;
-            border: 1px solid #333;
+            border-radius: 12px;
+            border: 1px solid #444;
+            backdrop-filter: blur(4px);
         }
 
         #count-display {
-            font-size: 2.5rem;
-            font-weight: bold;
+            font-size: 2.8rem;
+            font-weight: 900;
             color: #4CAF50;
+            line-height: 1;
+            margin-top: 5px;
         }
 
         #feedback-display {
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: bold;
             text-align: right;
-            max-width: 50%;
+            margin-top: 5px;
         }
 
         .good-form { color: #4CAF50; }
         .bad-form { color: #F44336; }
         .warning { color: #FFC107; }
+        .push-up { color: #2196F3; }
 
+        /* Video Container */
         #video-container {
             flex-grow: 1;
             position: relative;
@@ -66,11 +74,10 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
+            background: #000;
         }
 
-        .input_video {
-            display: none;
-        }
+        .input_video { display: none; }
 
         .output_canvas {
             width: 100%;
@@ -79,54 +86,75 @@
             transform: scaleX(-1); /* Mirror effect */
         }
 
+        /* Progress Bar UI */
+        #progress-container {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 50vh;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #555;
+            border-radius: 15px;
+            overflow: hidden;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        #progress-bar {
+            width: 100%;
+            height: 0%;
+            background-color: #FFC107;
+            transition: height 0.1s ease-out, background-color 0.2s;
+        }
+
+        /* Overlays & Buttons */
         #overlay-message {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 1.2rem;
             z-index: 20;
             text-align: center;
-            background: rgba(0,0,0,0.9);
-            padding: 30px;
-            border-radius: 10px;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 30px 20px;
+            border-radius: 16px;
             border: 1px solid #555;
             width: 85%;
-            max-width: 400px;
+            max-width: 350px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
         
         .spinner {
-            border: 4px solid rgba(255,255,255,0.3);
+            border: 4px solid rgba(255,255,255,0.2);
             border-top: 4px solid #4CAF50;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 15px auto;
-            display: none; /* Hidden until button clicked */
+            display: none;
         }
 
         #start-btn {
-            background-color: #4CAF50;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
             color: white;
             border: none;
-            padding: 15px 30px;
-            font-size: 1.2rem;
+            padding: 18px 30px;
+            font-size: 1.3rem;
             font-weight: bold;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
-            margin-top: 15px;
+            margin-top: 20px;
             width: 100%;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
         }
 
         #start-btn:active {
-            background-color: #45a049;
-        }
-
-        .error-icon {
-            font-size: 3rem;
-            color: #F44336;
-            margin-bottom: 10px;
+            transform: scale(0.98);
         }
 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -137,25 +165,31 @@
     <div id="overlay-message">
         <div class="spinner" id="spinner"></div>
         <div id="message-text">
-            <strong>Ready for Pushups?</strong><br>
-            <span style="font-size: 0.9rem; color: #aaa;">Ensure you are in a well-lit area.</span>
+            <h2 style="margin: 0 0 10px 0; font-size: 1.5rem;">AI Pushup Tracker</h2>
+            <span style="font-size: 1rem; color: #ccc; line-height: 1.4; display: block;">
+                Prop your phone against a wall.<br>Make sure your whole body is visible.
+            </span>
         </div>
-        <button id="start-btn">Start Camera</button>
+        <button id="start-btn">Allow Camera & Start</button>
+    </div>
+
+    <!-- The Progress Bar on the left -->
+    <div id="progress-container">
+        <div id="progress-bar"></div>
     </div>
 
     <div id="ui-container">
         <div class="hud-box">
-            <div style="font-size: 0.9rem; color: #aaa; text-transform: uppercase;">Pushups</div>
+            <div style="font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Pushups</div>
             <div id="count-display">0</div>
         </div>
         <div class="hud-box" style="display: flex; flex-direction: column; align-items: flex-end;">
-            <div style="font-size: 0.9rem; color: #aaa; text-transform: uppercase;">Form Status</div>
-            <div id="feedback-display" class="warning">Position yourself</div>
+            <div style="font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Form Status</div>
+            <div id="feedback-display" class="warning">Waiting...</div>
         </div>
     </div>
 
     <div id="video-container">
-        <!-- critical standard attributes for mobile web video -->
         <video class="input_video" autoplay playsinline muted></video>
         <canvas class="output_canvas"></canvas>
     </div>
@@ -164,19 +198,27 @@
         const videoElement = document.getElementsByClassName('input_video')[0];
         const canvasElement = document.getElementsByClassName('output_canvas')[0];
         const canvasCtx = canvasElement.getContext('2d');
+        
         const countDisplay = document.getElementById('count-display');
         const feedbackDisplay = document.getElementById('feedback-display');
         const overlayMessage = document.getElementById('overlay-message');
         const messageText = document.getElementById('message-text');
         const spinner = document.getElementById('spinner');
         const startBtn = document.getElementById('start-btn');
+        const progressBar = document.getElementById('progress-bar');
 
         let pushupCount = 0;
         let positionState = "up"; 
         let isModelLoaded = false;
         let lastVideoTime = -1;
 
-        // Angle math
+        // --- LENIENT SETTINGS (Easy Mode) ---
+        const UP_ANGLE = 150;    // You don't have to lock your arms completely (180 is full lock)
+        const DOWN_ANGLE = 105;  // You don't have to go all the way down (90 is standard)
+        const BACK_ANGLE = 130;  // Very forgiving on back straightness
+        // ------------------------------------
+
+        // Math to calculate body angles
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
@@ -186,11 +228,11 @@
             return angle;
         }
 
-        // What happens when AI processes a frame
+        // Processing each frame from the AI
         function onResults(results) {
             if (!isModelLoaded) {
                 isModelLoaded = true;
-                overlayMessage.style.display = 'none'; // Hide loading screen
+                overlayMessage.style.display = 'none';
             }
 
             canvasCtx.save();
@@ -198,67 +240,77 @@
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.poseLandmarks) {
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 4});
-                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#4CAF50', lineWidth: 2, radius: 4});
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 3});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FFC107', lineWidth: 1, radius: 3});
 
                 const landmarks = results.poseLandmarks;
                 
-                // Decide which side of the body is visible
-                const leftVisibility = (landmarks[11].visibility + landmarks[13].visibility + landmarks[15].visibility) / 3;
-                const rightVisibility = (landmarks[12].visibility + landmarks[14].visibility + landmarks[16].visibility) / 3;
+                // Determine which side is facing the camera
+                const leftVis = (landmarks[11].visibility + landmarks[13].visibility + landmarks[15].visibility);
+                const rightVis = (landmarks[12].visibility + landmarks[14].visibility + landmarks[16].visibility);
                 
                 let shoulder, elbow, wrist, hip, ankle;
 
-                if (leftVisibility > rightVisibility) {
-                    shoulder = landmarks[11];
-                    elbow = landmarks[13];
-                    wrist = landmarks[15];
-                    hip = landmarks[23];
-                    ankle = landmarks[27];
+                if (leftVis > rightVis) {
+                    shoulder = landmarks[11]; elbow = landmarks[13]; wrist = landmarks[15];
+                    hip = landmarks[23]; ankle = landmarks[27];
                 } else {
-                    shoulder = landmarks[12];
-                    elbow = landmarks[14];
-                    wrist = landmarks[16];
-                    hip = landmarks[24];
-                    ankle = landmarks[28];
+                    shoulder = landmarks[12]; elbow = landmarks[14]; wrist = landmarks[16];
+                    hip = landmarks[24]; ankle = landmarks[28];
                 }
 
-                if (shoulder.visibility > 0.5 && elbow.visibility > 0.5 && wrist.visibility > 0.5 && hip.visibility > 0.5) {
+                // Make sure we can see the person
+                if (shoulder.visibility > 0.4 && elbow.visibility > 0.4 && wrist.visibility > 0.4 && hip.visibility > 0.4) {
                     
                     const armAngle = calculateAngle(shoulder, elbow, wrist);
                     const bodyAngle = calculateAngle(shoulder, hip, ankle);
 
-                    let feedbackText = "Looking Good!";
-                    let feedbackClass = "good-form";
+                    let feedbackText = "";
+                    let feedbackClass = "";
 
-                    const isBackStraight = bodyAngle > 150 && bodyAngle < 190;
+                    // Check if back is somewhat straight (very lenient)
+                    const isBackStraight = bodyAngle > BACK_ANGLE;
                     
                     if (!isBackStraight) {
-                        feedbackText = "Keep back straight!";
+                        feedbackText = "Lower your hips!";
                         feedbackClass = "bad-form";
+                        progressBar.style.backgroundColor = "#F44336"; // Red bar for bad form
                     } else {
-                        if (armAngle > 160) {
-                            if (positionState === "down") {
+                        // Calculate Depth Percentage for Progress Bar
+                        // 0% when arm is straight (UP_ANGLE), 100% when bent (DOWN_ANGLE)
+                        let depthPercent = ((UP_ANGLE - armAngle) / (UP_ANGLE - DOWN_ANGLE)) * 100;
+                        depthPercent = Math.max(0, Math.min(100, depthPercent)); // Keep between 0-100
+                        
+                        progressBar.style.height = `${depthPercent}%`;
+
+                        // Pushup Logic
+                        if (positionState === "up") {
+                            if (depthPercent >= 100) {
+                                // Reached the bottom!
+                                positionState = "down";
+                                progressBar.style.backgroundColor = "#4CAF50"; // Green
+                                feedbackText = "Now Push UP!";
+                                feedbackClass = "good-form";
+                            } else {
+                                // Going down
+                                progressBar.style.backgroundColor = "#FFC107"; // Yellow
+                                feedbackText = "Go Lower...";
+                                feedbackClass = "warning";
+                            }
+                        } else if (positionState === "down") {
+                            if (depthPercent <= 0) {
+                                // Reached the top!
+                                positionState = "up";
                                 pushupCount++;
                                 countDisplay.innerText = pushupCount;
+                                feedbackText = "Great rep!";
+                                feedbackClass = "good-form";
+                            } else {
+                                // Pushing up
+                                progressBar.style.backgroundColor = "#2196F3"; // Blue
+                                feedbackText = "Keep Pushing!";
+                                feedbackClass = "push-up";
                             }
-                            positionState = "up";
-                        }
-                        
-                        if (armAngle < 90) {
-                            if (positionState === "up") {
-                                positionState = "down";
-                            }
-                        }
-
-                        if (positionState === "up" && armAngle < 160 && armAngle > 90) {
-                             feedbackText = "Go lower!";
-                             feedbackClass = "warning";
-                        }
-                        
-                        if (positionState === "down") {
-                             feedbackText = "Push up!";
-                             feedbackClass = "warning";
                         }
                     }
 
@@ -266,20 +318,25 @@
                     feedbackDisplay.className = feedbackClass;
 
                 } else {
-                    feedbackDisplay.innerText = "Step back to show whole body";
-                    feedbackDisplay.className = "warning";
+                    // Can't see enough of the body
+                    feedbackDisplay.innerText = "Step back more";
+                    feedbackDisplay.className = "bad-form";
+                    progressBar.style.height = "0%";
                 }
+            } else {
+                feedbackDisplay.innerText = "No one detected";
+                feedbackDisplay.className = "bad-form";
             }
             canvasCtx.restore();
         }
 
-        // Initialize MediaPipe Pose
+        // Initialize AI Model
         const pose = new Pose({locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
         }});
 
         pose.setOptions({
-            modelComplexity: 0, // Best for mobile phones
+            modelComplexity: 0, 
             smoothLandmarks: true,
             enableSegmentation: false,
             smoothSegmentation: false,
@@ -300,16 +357,29 @@
             requestAnimationFrame(processVideo);
         }
 
-        // Button Click to Start Camera
+        // Start Button Logic with robust Permission Handling
         startBtn.addEventListener('click', async () => {
+            
+            // Check if browser actually supports cameras (e.g. not an in-app browser)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                messageText.innerHTML = `
+                    <h3 style="color:#F44336; margin:0 0 10px 0;">Browser Not Supported</h3>
+                    <span style="font-size: 0.9rem;">
+                    Your current browser completely blocks cameras.<br><br>
+                    <strong>Fix:</strong> Open this link directly in <b>Safari</b> or <b>Chrome</b>.
+                    </span>
+                `;
+                return;
+            }
+
             startBtn.style.display = 'none';
             spinner.style.display = 'block';
-            messageText.innerHTML = "<strong>Loading AI Model...</strong><br><span style='font-size: 0.9rem; color: #aaa;'>Please accept camera permissions</span>";
+            messageText.innerHTML = "<strong>Loading AI Model...</strong><br><span style='font-size: 0.9rem; color: #FFC107;'>If a popup appears, tap 'Allow'</span>";
             
             try {
-                // We ask for front camera, but we DO NOT force a strict width/height to avoid crashing
+                // Request camera permission explicitly
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: false
                 });
 
@@ -318,26 +388,26 @@
                 videoElement.onloadedmetadata = () => {
                     videoElement.play();
                     
-                    // Match the canvas perfectly to whatever the phone camera outputs natively
+                    // Match canvas to video size for perfect tracking overlay
                     canvasElement.width = videoElement.videoWidth;
                     canvasElement.height = videoElement.videoHeight;
                     
-                    // Start feeding frames to the AI
+                    // Start feeding AI
                     requestAnimationFrame(processVideo);
                 };
             } catch (err) {
                 spinner.style.display = 'none';
+                startBtn.style.display = 'block';
+                startBtn.innerText = "Try Again";
                 messageText.innerHTML = `
-                    <div class="error-icon">⚠️</div>
-                    <strong style="color:#F44336">Camera Error</strong><br><br>
+                    <h3 style="color:#F44336; margin:0 0 10px 0;">Camera Blocked</h3>
                     <span style="font-size: 0.9rem;">
-                    Could not access camera. Make sure you haven't blocked permissions in your browser settings.
-                    <br><br>Error: ${err.message}
+                    You must allow camera access for this to work.<br><br>
+                    <strong>Fix:</strong> Check your browser URL bar for a camera icon with a red slash, or check your phone Settings to ensure Safari/Chrome has camera access.
                     </span>
                 `;
             }
         });
-
     </script>
 </body>
 </html>
