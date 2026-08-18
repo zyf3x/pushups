@@ -69,7 +69,6 @@
             overflow: hidden;
         }
 
-        /* The video element is hidden; we draw onto the canvas instead */
         .input_video {
             display: none;
         }
@@ -78,21 +77,24 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror effect for front camera */
+            transform: scaleX(-1);
         }
 
-        #loading {
+        #overlay-message {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             font-weight: bold;
             z-index: 20;
             text-align: center;
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
+            background: rgba(0,0,0,0.9);
+            padding: 30px;
             border-radius: 10px;
+            border: 1px solid #555;
+            width: 80%;
+            max-width: 400px;
         }
         
         .spinner {
@@ -105,15 +107,20 @@
             margin: 0 auto 15px auto;
         }
 
+        .error-icon {
+            font-size: 3rem;
+            color: #F44336;
+            margin-bottom: 10px;
+        }
+
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div id="loading">
-        <div class="spinner"></div>
-        Loading AI Model...<br>
-        <span style="font-size: 0.9rem; color: #aaa;">Please allow camera access</span>
+    <div id="overlay-message">
+        <div class="spinner" id="spinner"></div>
+        <div id="message-text">Loading AI Model...<br><span style="font-size: 0.9rem; color: #aaa;">Please allow camera access</span></div>
     </div>
 
     <div id="ui-container">
@@ -128,7 +135,6 @@
     </div>
 
     <div id="video-container">
-        <!-- playsinline is critical for iOS mobile browsers -->
         <video class="input_video" autoplay playsinline></video>
         <canvas class="output_canvas" width="720" height="1280"></canvas>
     </div>
@@ -139,14 +145,14 @@
         const canvasCtx = canvasElement.getContext('2d');
         const countDisplay = document.getElementById('count-display');
         const feedbackDisplay = document.getElementById('feedback-display');
-        const loadingScreen = document.getElementById('loading');
+        const overlayMessage = document.getElementById('overlay-message');
+        const messageText = document.getElementById('message-text');
+        const spinner = document.getElementById('spinner');
 
-        // State variables
         let pushupCount = 0;
-        let positionState = "up"; // "up" or "down"
+        let positionState = "up"; 
         let isModelLoaded = false;
 
-        // Utility: Calculate angle between three points (A, B, C) where B is the vertex
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
@@ -159,10 +165,9 @@
         function onResults(results) {
             if (!isModelLoaded) {
                 isModelLoaded = true;
-                loadingScreen.style.display = 'none';
+                overlayMessage.style.display = 'none';
             }
 
-            // Draw video and landmarks
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
@@ -171,10 +176,8 @@
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 4});
                 drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#4CAF50', lineWidth: 2, radius: 4});
 
-                // Extract landmarks
                 const landmarks = results.poseLandmarks;
                 
-                // Determine which side of the body is more visible to use for calculations
                 const leftVisibility = (landmarks[11].visibility + landmarks[13].visibility + landmarks[15].visibility) / 3;
                 const rightVisibility = (landmarks[12].visibility + landmarks[14].visibility + landmarks[16].visibility) / 3;
                 
@@ -194,27 +197,22 @@
                     ankle = landmarks[28];
                 }
 
-                // Check if we can see enough of the body
                 if (shoulder.visibility > 0.5 && elbow.visibility > 0.5 && wrist.visibility > 0.5 && hip.visibility > 0.5) {
                     
-                    // Calculate angles
                     const armAngle = calculateAngle(shoulder, elbow, wrist);
                     const bodyAngle = calculateAngle(shoulder, hip, ankle);
 
                     let feedbackText = "Looking Good!";
                     let feedbackClass = "good-form";
 
-                    // Form check: body should be relatively straight (angle around 160-180)
                     const isBackStraight = bodyAngle > 150 && bodyAngle < 190;
                     
                     if (!isBackStraight) {
                         feedbackText = "Keep back straight!";
                         feedbackClass = "bad-form";
                     } else {
-                        // Pushup counting logic
                         if (armAngle > 160) {
                             if (positionState === "down") {
-                                // Completed a rep
                                 pushupCount++;
                                 countDisplay.innerText = pushupCount;
                             }
@@ -249,13 +247,12 @@
             canvasCtx.restore();
         }
 
-        // Initialize MediaPipe Pose
         const pose = new Pose({locateFile: (file) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
         }});
 
         pose.setOptions({
-            modelComplexity: 0, // 0 is fastest, better for mobile. 1 or 2 is more accurate.
+            modelComplexity: 0, 
             smoothLandmarks: true,
             enableSegmentation: false,
             smoothSegmentation: false,
@@ -265,17 +262,28 @@
 
         pose.onResults(onResults);
 
-        // Setup Camera
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await pose.send({image: videoElement});
             },
             width: 720,
             height: 1280,
-            facingMode: 'user' // Front facing camera
+            facingMode: 'user'
         });
 
-        camera.start();
+        // Add error handling to camera start
+        camera.start().catch((err) => {
+            spinner.style.display = 'none';
+            messageText.innerHTML = `
+                <div class="error-icon">⚠️</div>
+                <strong style="color:#F44336">Camera Access Denied</strong><br><br>
+                <span style="font-size: 0.9rem;">
+                Browsers block camera access when a file is opened locally. <br><br>
+                You must host this file on a secure (HTTPS) server to use it on your phone.
+                </span>
+            `;
+            console.error(err);
+        });
     </script>
 </body>
 </html>
