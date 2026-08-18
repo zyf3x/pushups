@@ -3,20 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Arcade Pushup AI</title>
-    
-    <!-- MediaPipe Libraries -->
+    <title>Pushup Coach AI</title>
+
+    <!-- Google Fonts & Material Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+
+    <!-- MediaPipe Pose Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@600;700&display=swap');
+        :root {
+            --bg-glass: rgba(18, 22, 31, 0.78);
+            --border-glass: rgba(255, 255, 255, 0.12);
+            --accent-green: #10B981;
+            --accent-blue: #3B82F6;
+            --accent-red: #EF4444;
+            --text-primary: #FFFFFF;
+            --text-secondary: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
 
         body {
-            margin: 0; padding: 0;
-            background-color: #000;
-            color: white;
-            font-family: 'Rajdhani', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #0B0F17;
+            color: var(--text-primary);
+            font-family: 'Plus Jakarta Sans', sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -24,339 +45,846 @@
             width: 100vw;
         }
 
-        /* --- Gamified UI --- */
-        #ui-container {
-            position: absolute; top: 0; left: 0;
-            width: 100%; padding: 20px;
-            box-sizing: border-box; z-index: 10;
-            display: flex; justify-content: space-between;
-            pointer-events: none;
-        }
-
-        .hud-box {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 10px 20px;
-            border-radius: 12px;
-            border: 2px solid #00E5FF;
-            box-shadow: 0 0 10px #00E5FF;
-            text-align: center;
-            transition: all 0.2s ease;
-        }
-
-        #count-display {
-            font-family: 'Black Ops One', cursive;
-            font-size: 4rem;
-            color: #00E5FF;
-            text-shadow: 0 0 15px #00E5FF;
-            line-height: 1;
-        }
-
-        /* Pop animation for when a rep is counted */
-        .pop-anim {
-            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        @keyframes pop {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.5); filter: brightness(2); }
-            100% { transform: scale(1); }
-        }
-
-        #level-display {
-            color: #FF00FF;
-            font-size: 1.2rem;
-            text-shadow: 0 0 8px #FF00FF;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        /* Progress Bar (Neon) */
-        #progress-container {
-            position: absolute;
-            left: 20px; top: 50%;
-            transform: translateY(-50%);
-            width: 20px; height: 50vh;
-            background: rgba(0,0,0,0.8);
-            border: 2px solid #333;
-            border-radius: 10px;
-            overflow: hidden; z-index: 10;
-            display: flex; flex-direction: column; justify-content: flex-end;
-            box-shadow: inset 0 0 10px #000;
-        }
-
-        #progress-bar {
-            width: 100%; height: 0%;
-            background: linear-gradient(to top, #FF0055, #FFEA00);
-            transition: height 0.1s linear, background 0.3s;
-            box-shadow: 0 0 15px #FFEA00;
-        }
-
-        /* --- ZERO LATENCY VIDEO OVERLAY --- */
+        /* --- Camera & Transparent Skeleton Canvas --- */
         #video-container {
             position: absolute;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            display: flex; justify-content: center; align-items: center;
-            overflow: hidden; background: #111;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background: #0B0F17;
         }
 
-        /* Video plays smoothly underneath */
         .input_video {
             position: absolute;
-            width: 100%; height: 100%;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
             z-index: 1;
         }
 
-        /* Canvas is completely transparent and just draws the skeleton on top */
         .output_canvas {
             position: absolute;
-            width: 100%; height: 100%;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
             z-index: 2;
             pointer-events: none;
         }
 
-        /* Intro Screen */
-        #overlay-message {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 20; text-align: center;
-            background: rgba(10, 10, 20, 0.95);
-            padding: 30px; border-radius: 20px;
-            border: 2px solid #00E5FF;
-            width: 85%; max-width: 400px;
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+        /* --- Top App Bar --- */
+        #top-bar {
+            position: absolute;
+            top: env(safe-area-inset-top, 16px);
+            left: 0;
+            width: 100%;
+            padding: 16px 20px;
+            z-index: 20;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .app-pill {
             pointer-events: auto;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            border-radius: 50px;
+            padding: 8px 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
-        #start-btn {
-            background: #00E5FF; color: #000;
-            border: none; padding: 15px 30px;
-            font-size: 1.5rem; font-weight: bold;
-            font-family: 'Rajdhani', sans-serif;
-            border-radius: 8px; cursor: pointer;
-            margin-top: 20px; width: 100%;
+        .icon-btn {
+            pointer-events: auto;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .icon-btn:active {
+            transform: scale(0.92);
+            background: rgba(255,255,255,0.15);
+        }
+
+        /* --- Primary Stats Card --- */
+        #stats-card {
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 16px) + 70px);
+            right: 20px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            border-radius: 20px;
+            padding: 14px 18px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 140px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stat-icon {
+            font-size: 20px;
+            color: var(--text-secondary);
+        }
+
+        .stat-val {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
             text-transform: uppercase;
-            box-shadow: 0 0 15px #00E5FF;
-            transition: 0.2s;
+            font-weight: 600;
         }
-        #start-btn:active { transform: scale(0.95); }
 
-        #error-log {
-            color: #FF0055; font-size: 0.9rem;
-            margin-top: 15px; word-wrap: break-word;
+        /* Main Rep Counter */
+        #counter-hud {
+            position: absolute;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            padding: 16px 32px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            min-width: 200px;
+        }
+
+        #count-num {
+            font-size: 4rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -2px;
+            color: #FFFFFF;
+            transition: transform 0.15s ease;
+        }
+
+        .bump-rep {
+            transform: scale(1.3);
+            color: var(--accent-green) !important;
+        }
+
+        #feedback-badge {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.08);
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        /* --- Dynamic Depth Gauge (Left Bar) --- */
+        #bar-wrapper {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 48vh;
+            width: 32px;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            border-radius: 16px;
+            padding: 4px;
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+        }
+
+        #depth-track {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        #depth-fill {
+            width: 100%;
+            height: 0%;
+            border-radius: 12px;
+            background: var(--accent-green);
+            transition: height 0.08s ease-out, background-color 0.1s ease;
+        }
+
+        /* Target Difficulty Line */
+        #target-marker {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: #FFFFFF;
+            box-shadow: 0 0 8px #FFFFFF;
+            z-index: 3;
+            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #target-tag {
+            position: absolute;
+            left: 38px;
+            transform: translateY(50%);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #FFFFFF;
+            color: #000000;
+            padding: 2px 6px;
+            border-radius: 6px;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        /* --- Settings Bottom Sheet / Modal --- */
+        #settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        #modal-content {
+            background: #181E29;
+            border-top: 1px solid var(--border-glass);
+            border-radius: 28px 28px 0 0;
+            width: 100%;
+            max-width: 500px;
+            padding: 24px;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        .setting-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .segmented-control {
+            display: flex;
+            background: rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .segment-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            padding: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .segment-btn.active {
+            background: #2D3748;
+            color: #FFFFFF;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .action-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            font-family: inherit;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-reset {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .btn-primary {
+            background: #FFFFFF;
+            color: #000000;
+        }
+
+        /* --- Start Screen --- */
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #0B0F17;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .start-card {
+            background: #141A24;
+            border: 1px solid var(--border-glass);
+            border-radius: 28px;
+            padding: 36px 28px;
+            max-width: 360px;
+            width: 100%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .start-btn {
+            background: #FFFFFF;
+            color: #000000;
+            border: none;
+            border-radius: 16px;
+            padding: 16px 24px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            font-family: inherit;
+            width: 100%;
+            margin-top: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(255,255,255,0.15);
+        }
+
+        .start-btn:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
 <body>
 
-    <div id="overlay-message">
-        <h1 style="margin: 0; font-family: 'Black Ops One'; color: #00E5FF; font-size: 2.5rem;">READY?</h1>
-        <p style="color: #ccc; font-size: 1.2rem;">Sound ON! 🔊<br>Get your whole body in frame.</p>
-        <button id="start-btn">START CAMERA</button>
-        <div id="error-log"></div>
-    </div>
-
-    <div id="progress-container">
-        <div id="progress-bar"></div>
-    </div>
-
-    <div id="ui-container">
-        <div class="hud-box" id="score-box">
-            <div id="level-display">ROOKIE</div>
-            <div id="count-display">0</div>
-        </div>
-        <div class="hud-box" style="border-color: #FF00FF; box-shadow: 0 0 10px #FF00FF;">
-            <div style="color: #FF00FF; font-weight: bold; text-transform: uppercase;">Tracker</div>
-            <div id="feedback-display" style="font-size: 1.3rem; margin-top: 5px;">Stand by</div>
-        </div>
-    </div>
-
+    <!-- Camera & Visual Canvas -->
     <div id="video-container">
-        <!-- Visible video layer handles camera feed natively = 0 lag -->
         <video class="input_video" autoplay playsinline muted></video>
-        <!-- Transparent canvas layer just for drawing lines -->
         <canvas class="output_canvas"></canvas>
     </div>
 
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="app-pill">
+            <span class="material-symbols-outlined" style="font-size: 20px; color: var(--accent-green);">fitness_center</span>
+            <span id="diff-pill-label" style="font-size: 0.85rem; font-weight: 700;">Standard</span>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button class="icon-btn" id="sound-btn" aria-label="Toggle Sound">
+                <span class="material-symbols-outlined" id="sound-icon">volume_up</span>
+            </button>
+            <button class="icon-btn" id="settings-btn" aria-label="Settings">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Live Workout Stats (Time & Calories) -->
+    <div id="stats-card">
+        <div class="stat-item">
+            <span class="material-symbols-outlined stat-icon">timer</span>
+            <div>
+                <div class="stat-val" id="time-val">00:00</div>
+                <div class="stat-label">Duration</div>
+            </div>
+        </div>
+        <div class="stat-item">
+            <span class="material-symbols-outlined stat-icon" style="color: #F59E0B;">local_fire_department</span>
+            <div>
+                <div class="stat-val" id="cal-val">0</div>
+                <div class="stat-label">Est. Kcal</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pushup Depth Gauge with Target Difficulty Line -->
+    <div id="bar-wrapper">
+        <div id="depth-track">
+            <div id="target-marker" style="bottom: 75%;">
+                <div id="target-tag">Target</div>
+            </div>
+            <div id="depth-fill"></div>
+        </div>
+    </div>
+
+    <!-- Central Rep Counter -->
+    <div id="counter-hud">
+        <div id="count-num">0</div>
+        <div id="feedback-badge">Ready</div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal">
+        <div id="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span class="material-symbols-outlined">tune</span> Workout Settings
+                </div>
+                <button class="icon-btn" id="close-settings" style="width: 36px; height: 36px;">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                </button>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Difficulty Depth</label>
+                <div class="segmented-control">
+                    <button class="segment-btn" data-diff="easy">Beginner</button>
+                    <button class="segment-btn active" data-diff="medium">Standard</button>
+                    <button class="segment-btn" data-diff="hard">Pro</button>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label class="setting-label">Rep Target Goal</label>
+                <div class="segmented-control">
+                    <button class="segment-btn goal-btn active" data-goal="10">10</button>
+                    <button class="segment-btn goal-btn" data-goal="25">25</button>
+                    <button class="segment-btn goal-btn" data-goal="50">50</button>
+                    <button class="segment-btn goal-btn" data-goal="0">Freestyle</button>
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button class="action-btn btn-reset" id="reset-btn">
+                    <span class="material-symbols-outlined">restart_alt</span> Reset Workout
+                </button>
+                <button class="action-btn btn-primary" id="save-settings">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding / Camera Start Screen -->
+    <div id="start-overlay">
+        <div class="start-card">
+            <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+                <span class="material-symbols-outlined" style="font-size: 32px; color: var(--accent-green);">videocam</span>
+            </div>
+            <h2 style="margin: 0 0 8px 0; font-weight: 800; font-size: 1.5rem;">Pushup Challenge</h2>
+            <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5;">
+                Prop your phone on the floor and step back so your full body is in view.
+            </p>
+
+            <button class="start-btn" id="start-app-btn">
+                <span>Start Workout</span>
+                <span class="material-symbols-outlined">arrow_forward</span>
+            </button>
+
+            <div id="camera-err-log" style="color: var(--accent-red); font-size: 0.85rem; margin-top: 14px; display: none;"></div>
+        </div>
+    </div>
+
     <script>
+        // DOM Elements
         const videoElement = document.getElementsByClassName('input_video')[0];
         const canvasElement = document.getElementsByClassName('output_canvas')[0];
         const canvasCtx = canvasElement.getContext('2d');
-        
-        const countDisplay = document.getElementById('count-display');
-        const feedbackDisplay = document.getElementById('feedback-display');
-        const levelDisplay = document.getElementById('level-display');
-        const scoreBox = document.getElementById('score-box');
-        const overlayMessage = document.getElementById('overlay-message');
-        const startBtn = document.getElementById('start-btn');
-        const errorLog = document.getElementById('error-log');
-        const progressBar = document.getElementById('progress-bar');
 
+        const countNum = document.getElementById('count-num');
+        const feedbackBadge = document.getElementById('feedback-badge');
+        const depthFill = document.getElementById('depth-fill');
+        const targetMarker = document.getElementById('target-marker');
+        const diffPillLabel = document.getElementById('diff-pill-label');
+        const timeVal = document.getElementById('time-val');
+        const calVal = document.getElementById('cal-val');
+
+        const startOverlay = document.getElementById('start-overlay');
+        const startAppBtn = document.getElementById('start-app-btn');
+        const cameraErrLog = document.getElementById('camera-err-log');
+
+        const settingsModal = document.getElementById('settings-modal');
+        const settingsBtn = document.getElementById('settings-btn');
+        const closeSettings = document.getElementById('close-settings');
+        const saveSettings = document.getElementById('save-settings');
+        const resetBtn = document.getElementById('reset-btn');
+        const soundBtn = document.getElementById('sound-btn');
+        const soundIcon = document.getElementById('sound-icon');
+
+        // State variables
         let pushupCount = 0;
-        let positionState = "up"; 
-        let isProcessing = false; // Prevents AI frame overlap
+        let positionState = "up"; // "up" or "down"
+        let isProcessing = false;
+        let soundEnabled = true;
+        let targetGoal = 10;
+        let workoutSeconds = 0;
+        let timerInterval = null;
 
-        // Audio Context for the "DING!" sound
-        let audioCtx;
+        // Difficulty Preset Configuration
+        const DIFFICULTY_PRESETS = {
+            easy: { name: "Beginner", downAngle: 115, upAngle: 155, targetPercent: 65 },
+            medium: { name: "Standard", downAngle: 95, upAngle: 160, targetPercent: 80 },
+            hard: { name: "Pro", downAngle: 80, upAngle: 165, targetPercent: 95 }
+        };
 
-        function playDing() {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            osc.type = 'square'; // Arcade sound
-            osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1); // Slide up to A5
-            
-            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.3);
+        let currentDiff = "medium";
+
+        // Web Audio API for Chimes
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
         }
 
+        function playTone(freq, duration, type = 'sine') {
+            if (!soundEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        function triggerSuccessSound() {
+            playTone(523.25, 0.12); // C5
+            setTimeout(() => playTone(659.25, 0.2), 80); // E5
+        }
+
+        function triggerTargetReachedSound() {
+            playTone(440, 0.08); // Quick subtle click
+        }
+
+        // Haptic feedback
+        function vibrate(pattern) {
+            if ("vibrate" in navigator) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        // Set Difficulty and adjust target marker line
+        function setDifficulty(diffKey) {
+            currentDiff = diffKey;
+            const config = DIFFICULTY_PRESETS[diffKey];
+            diffPillLabel.innerText = config.name;
+            targetMarker.style.bottom = `${config.targetPercent}%`;
+
+            document.querySelectorAll('[data-diff]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.diff === diffKey);
+            });
+        }
+
+        // Geometry Math: Angle between 3 points
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
             return angle > 180.0 ? 360.0 - angle : angle;
         }
 
-        function updateLevel() {
-            if (pushupCount >= 20) levelDisplay.innerText = "BEAST MODE";
-            else if (pushupCount >= 10) levelDisplay.innerText = "WARRIOR";
-            else if (pushupCount >= 5) levelDisplay.innerText = "FIGHTER";
+        // Color generator: Green (0%) -> Yellow (50%) -> Red (100%)
+        function getDepthColor(percent) {
+            const factor = Math.min(Math.max(percent / 100, 0), 1);
+            // Green is HSL 140, Red is HSL 0
+            const hue = (1.0 - factor) * 140;
+            return `hsl(${hue}, 85%, 48%)`;
         }
 
+        // MediaPipe Pose Callback
         function onResults(results) {
-            // ONLY CLEAR AND DRAW SKELETON. Do NOT draw the video. 
-            // The video plays natively underneath this transparent canvas. (Zero lag!)
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.poseLandmarks) {
-                // Draw cool neon skeleton
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00E5FF', lineWidth: 4});
-                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF00FF', lineWidth: 2, radius: 4});
+                // Sleek, minimal skeleton styling
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(255, 255, 255, 0.65)', lineWidth: 3 });
+                drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#10B981', lineWidth: 1, radius: 4 });
 
                 const lm = results.poseLandmarks;
                 const leftVis = (lm[11].visibility + lm[13].visibility + lm[15].visibility);
                 const rightVis = (lm[12].visibility + lm[14].visibility + lm[16].visibility);
-                
-                let s, e, w, h, a; // shoulder, elbow, wrist, hip, ankle
+
+                let s, e, w, h, a;
                 if (leftVis > rightVis) {
-                    s=lm[11]; e=lm[13]; w=lm[15]; h=lm[23]; a=lm[27];
+                    s = lm[11]; e = lm[13]; w = lm[15]; h = lm[23]; a = lm[27];
                 } else {
-                    s=lm[12]; e=lm[14]; w=lm[16]; h=lm[24]; a=lm[28];
+                    s = lm[12]; e = lm[14]; w = lm[16]; h = lm[24]; a = lm[28];
                 }
 
                 if (s.visibility > 0.4 && e.visibility > 0.4 && h.visibility > 0.4) {
                     const armAngle = calculateAngle(s, e, w);
                     const bodyAngle = calculateAngle(s, h, a);
 
-                    if (bodyAngle < 120) {
-                        feedbackDisplay.innerText = "Straighten Back!";
-                        progressBar.style.background = "#FF0055";
-                    } else {
-                        // Depth calculation (Super easy mode: Top is 150deg, Bottom is 110deg)
-                        let depthPercent = ((150 - armAngle) / (150 - 110)) * 100;
-                        depthPercent = Math.max(0, Math.min(100, depthPercent));
-                        progressBar.style.height = `${depthPercent}%`;
+                    const config = DIFFICULTY_PRESETS[currentDiff];
 
+                    // Form validation
+                    if (bodyAngle < 125) {
+                        feedbackBadge.innerText = "Keep Hips Level";
+                        feedbackBadge.style.color = "var(--accent-red)";
+                        depthFill.style.backgroundColor = "var(--accent-red)";
+                    } else {
+                        // Depth calculation relative to current difficulty
+                        const range = config.upAngle - config.downAngle;
+                        let depthPercent = ((config.upAngle - armAngle) / range) * 100;
+                        depthPercent = Math.max(0, Math.min(105, depthPercent));
+
+                        // Visual progress bar
+                        depthFill.style.height = `${Math.min(100, depthPercent)}%`;
+                        depthFill.style.backgroundColor = getDepthColor(depthPercent);
+
+                        // State Transition Logic
                         if (positionState === "up") {
-                            if (depthPercent >= 100) {
+                            if (depthPercent >= config.targetPercent) {
                                 positionState = "down";
-                                feedbackDisplay.innerText = "PUSH!";
-                                progressBar.style.background = "#00E5FF"; // Neon Blue at bottom
+                                feedbackBadge.innerText = "Push Up!";
+                                feedbackBadge.style.color = "var(--accent-green)";
+                                triggerTargetReachedSound();
+                                vibrate(25);
                             } else {
-                                feedbackDisplay.innerText = "Lower...";
-                                progressBar.style.background = "linear-gradient(to top, #FF0055, #FFEA00)";
+                                feedbackBadge.innerText = "Lower Chest...";
+                                feedbackBadge.style.color = "var(--text-secondary)";
                             }
                         } else if (positionState === "down") {
-                            if (depthPercent <= 5) {
+                            if (depthPercent <= 12) {
                                 positionState = "up";
                                 pushupCount++;
-                                countDisplay.innerText = pushupCount;
-                                feedbackDisplay.innerText = "PERFECT!";
-                                updateLevel();
-                                
-                                // Arcade Pop Effects
-                                playDing();
-                                countDisplay.classList.remove("pop-anim");
-                                void countDisplay.offsetWidth; // Trigger reflow
-                                countDisplay.classList.add("pop-anim");
-                                
-                                scoreBox.style.boxShadow = "0 0 30px #00E5FF";
-                                setTimeout(() => scoreBox.style.boxShadow = "0 0 10px #00E5FF", 300);
+                                countNum.innerText = pushupCount;
+                                feedbackBadge.innerText = "Good Rep!";
+                                feedbackBadge.style.color = "var(--accent-green)";
 
+                                // Calorie estimate: ~0.35 cal per pushup
+                                calVal.innerText = (pushupCount * 0.35).toFixed(0);
+
+                                triggerSuccessSound();
+                                vibrate([40, 30, 40]);
+
+                                // Counter Animation
+                                countNum.classList.add('bump-rep');
+                                setTimeout(() => countNum.classList.remove('bump-rep'), 200);
+
+                                // Goal celebration check
+                                if (targetGoal > 0 && pushupCount === targetGoal) {
+                                    feedbackBadge.innerText = "Goal Reached! 🏆";
+                                    vibrate([100, 50, 100, 50, 200]);
+                                }
                             } else {
-                                feedbackDisplay.innerText = "Keep going up!";
+                                feedbackBadge.innerText = "Extend Arms Fully";
+                                feedbackBadge.style.color = "var(--accent-blue)";
                             }
                         }
                     }
                 } else {
-                    feedbackDisplay.innerText = "Show whole body";
+                    feedbackBadge.innerText = "Step back into frame";
+                    feedbackBadge.style.color = "var(--text-secondary)";
+                    depthFill.style.height = "0%";
                 }
             } else {
-                feedbackDisplay.innerText = "Searching...";
+                feedbackBadge.innerText = "Searching for body...";
+                feedbackBadge.style.color = "var(--text-secondary)";
             }
         }
 
-        const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+        // MediaPipe Pose Initialization
+        const pose = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+
         pose.setOptions({
-            modelComplexity: 0, 
+            modelComplexity: 0,
             smoothLandmarks: true,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
         });
+
         pose.onResults(onResults);
 
-        // AI Loop - decoupled from video rendering to ensure smoothness
+        // Native Camera Loop
         async function aiLoop() {
             if (videoElement.readyState >= 2 && !isProcessing) {
                 isProcessing = true;
-                await pose.send({image: videoElement});
+                await pose.send({ image: videoElement });
                 isProcessing = false;
             }
             requestAnimationFrame(aiLoop);
         }
 
-        startBtn.addEventListener('click', async () => {
-            // Initialize Audio on user click (Required for Apple/Google rules)
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-            
-            startBtn.innerText = "LOADING...";
-            errorLog.innerText = "";
+        // Timer Functionality
+        function startTimer() {
+            clearInterval(timerInterval);
+            workoutSeconds = 0;
+            timerInterval = setInterval(() => {
+                workoutSeconds++;
+                const mins = String(Math.floor(workoutSeconds / 60)).padStart(2, '0');
+                const secs = String(workoutSeconds % 60).padStart(2, '0');
+                timeVal.innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        // Start Workout & Camera
+        startAppBtn.addEventListener('click', async () => {
+            initAudio();
+            startAppBtn.innerText = "Starting Camera...";
+            cameraErrLog.style.display = 'none';
 
             try {
-                // The most forgiving camera request possible. No resolutions, just ask for the front camera.
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' }, 
+                    video: { facingMode: 'user' },
                     audio: false
                 });
 
                 videoElement.srcObject = stream;
-                
                 videoElement.onplay = () => {
-                    // Sync the transparent canvas exactly to the video size
                     canvasElement.width = videoElement.videoWidth;
                     canvasElement.height = videoElement.videoHeight;
-                    
-                    overlayMessage.style.display = 'none';
-                    aiLoop(); // Start AI tracking
+                    startOverlay.style.display = 'none';
+                    startTimer();
+                    aiLoop();
                 };
-                
             } catch (err) {
-                startBtn.innerText = "RETRY";
-                // Dump the exact error to the screen so you know exactly why the phone is blocking it
-                errorLog.innerHTML = `⚠️ <b>${err.name}</b>: ${err.message}<br><br>Make sure you didn't click "Deny", and that your browser has camera settings enabled.`;
-                console.error(err);
+                cameraErrLog.style.display = 'block';
+                cameraErrLog.innerHTML = `<b>Camera Access Error:</b> ${err.message || 'Permission denied'}. Please check your browser settings.`;
+                startAppBtn.innerText = "Try Again";
             }
         });
+
+        // Settings Modal Handlers
+        settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
+        closeSettings.addEventListener('click', () => settingsModal.style.display = 'none');
+        saveSettings.addEventListener('click', () => settingsModal.style.display = 'none');
+
+        // Difficulty Buttons
+        document.querySelectorAll('[data-diff]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setDifficulty(btn.dataset.diff);
+            });
+        });
+
+        // Goal Buttons
+        document.querySelectorAll('.goal-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.goal-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                targetGoal = parseInt(btn.dataset.goal, 10);
+            });
+        });
+
+        // Sound Toggle
+        soundBtn.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            soundIcon.innerText = soundEnabled ? 'volume_up' : 'volume_off';
+            soundBtn.style.opacity = soundEnabled ? '1' : '0.6';
+        });
+
+        // Reset Workout
+        resetBtn.addEventListener('click', () => {
+            pushupCount = 0;
+            countNum.innerText = "0";
+            calVal.innerText = "0";
+            startTimer();
+            settingsModal.style.display = 'none';
+        });
+
+        // Initial setup
+        setDifficulty("medium");
     </script>
 </body>
 </html>
