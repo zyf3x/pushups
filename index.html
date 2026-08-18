@@ -135,8 +135,9 @@
     </div>
 
     <div id="video-container">
-        <video class="input_video" autoplay playsinline></video>
-        <canvas class="output_canvas" width="720" height="1280"></canvas>
+        <!-- CRITICAL FIX: Added "muted" so iOS/Android allows it to autoplay -->
+        <video class="input_video" autoplay playsinline muted></video>
+        <canvas class="output_canvas" width="1280" height="720"></canvas>
     </div>
 
     <script>
@@ -266,20 +267,19 @@
             onFrame: async () => {
                 await pose.send({image: videoElement});
             },
-            width: 720,
-            height: 1280,
+            // CRITICAL FIX: Use standard landscape dimensions that all mobile phones support natively
+            width: 1280, 
+            height: 720,
             facingMode: 'user'
         });
 
-        // Add error handling to camera start
         camera.start().catch((err) => {
             spinner.style.display = 'none';
             messageText.innerHTML = `
                 <div class="error-icon">⚠️</div>
-                <strong style="color:#F44336">Camera Access Denied</strong><br><br>
+                <strong style="color:#F44336">Camera Error</strong><br><br>
                 <span style="font-size: 0.9rem;">
-                Browsers block camera access when a file is opened locally. <br><br>
-                You must host this file on a secure (HTTPS) server to use it on your phone.
+                ${err.message || "Could not access the camera."}
                 </span>
             `;
             console.error(err);
