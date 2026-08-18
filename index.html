@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pushup Coach AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI Coach Pro</title>
 
     <!-- Google Fonts & Material Symbols -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
 
     <!-- MediaPipe Pose Libraries -->
@@ -17,6 +17,8 @@
 
     <style>
         :root {
+            --bg-dark: #0B0F17;
+            --bg-card: #181E29;
             --bg-glass: rgba(18, 22, 31, 0.78);
             --border-glass: rgba(255, 255, 255, 0.12);
             --accent-green: #10B981;
@@ -26,511 +28,410 @@
             --text-secondary: #94A3B8;
         }
 
+        /* Reset & Mobile App Behaviors */
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent; /* REMOVES BLUE TAP BOX */
+            outline: none;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #0B0F17;
+            background-color: var(--bg-dark);
             color: var(--text-primary);
             font-family: 'Plus Jakarta Sans', sans-serif;
             overflow: hidden;
+            width: 100vw;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            width: 100vw;
         }
 
-        /* --- Camera & Transparent Skeleton Canvas --- */
-        #video-container {
+        /* --- SCREENS --- */
+        .screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-            background: #0B0F17;
+            display: none;
+            flex-direction: column;
+            z-index: 10;
         }
 
-        .input_video {
+        .screen.active {
+            display: flex;
+        }
+
+        /* --- MAIN MENU --- */
+        #main-menu {
+            background: var(--bg-dark);
+            padding: env(safe-area-inset-top, 20px) 20px 20px 20px;
+            z-index: 20;
+        }
+
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-top: 20px;
+        }
+
+        .menu-title {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            background: linear-gradient(90deg, #FFFFFF, #94A3B8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .mode-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .mode-card:active {
+            transform: scale(0.96);
+            background: rgba(255,255,255,0.08);
+        }
+
+        .mode-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent-green);
+        }
+
+        .mode-info h3 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .mode-info p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* --- WORKOUT SCREEN --- */
+        #video-container {
             position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000;
             z-index: 1;
         }
 
-        .output_canvas {
+        .input_video, .output_canvas {
             position: absolute;
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             object-fit: cover;
             transform: scaleX(-1);
-            z-index: 2;
-            pointer-events: none;
+        }
+        
+        .output_canvas { z-index: 2; pointer-events: none; }
+
+        /* UI Overlays */
+        #workout-ui {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let touches pass through except on buttons */
         }
 
-        /* --- Top App Bar --- */
-        #top-bar {
+        .top-bar {
             position: absolute;
-            top: env(safe-area-inset-top, 16px);
-            left: 0;
-            width: 100%;
-            padding: 16px 20px;
-            z-index: 20;
+            top: env(safe-area-inset-top, 20px);
+            left: 0; width: 100%;
+            padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             pointer-events: none;
-        }
-
-        .app-pill {
-            pointer-events: auto;
-            background: var(--bg-glass);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border-glass);
-            border-radius: 50px;
-            padding: 8px 16px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
         .icon-btn {
             pointer-events: auto;
             background: var(--bg-glass);
             backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border-glass);
             border-radius: 50%;
-            width: 46px;
-            height: 46px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-primary);
+            width: 48px; height: 48px;
+            display: flex; justify-content: center; align-items: center;
+            color: white;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: transform 0.2s;
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
-        .icon-btn:active {
-            transform: scale(0.92);
-            background: rgba(255,255,255,0.15);
+        .icon-btn:active { transform: scale(0.9); }
+
+        .app-pill {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-glass);
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
-        /* --- Primary Stats Card --- */
+        /* Stats Card */
         #stats-card {
             position: absolute;
-            top: calc(env(safe-area-inset-top, 16px) + 70px);
+            top: calc(env(safe-area-inset-top, 20px) + 70px);
             right: 20px;
             background: var(--bg-glass);
             backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border-glass);
             border-radius: 20px;
             padding: 14px 18px;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 140px;
+            display: flex; flex-direction: column; gap: 10px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.35);
         }
 
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .stat-item { display: flex; align-items: center; gap: 10px; }
+        .stat-icon { font-size: 20px; color: var(--text-secondary); }
+        .stat-val { font-size: 1.1rem; font-weight: 700; }
+        .stat-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; }
 
-        .stat-icon {
-            font-size: 20px;
-            color: var(--text-secondary);
-        }
-
-        .stat-val {
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        /* Main Rep Counter */
-        #counter-hud {
-            position: absolute;
-            bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-glass);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--border-glass);
-            border-radius: 28px;
-            padding: 16px 32px;
-            z-index: 15;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-            min-width: 200px;
-        }
-
-        #count-num {
-            font-size: 4rem;
-            font-weight: 800;
-            line-height: 1;
-            letter-spacing: -2px;
-            color: #FFFFFF;
-            transition: transform 0.15s ease;
-        }
-
-        .bump-rep {
-            transform: scale(1.3);
-            color: var(--accent-green) !important;
-        }
-
-        #feedback-badge {
-            margin-top: 6px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.08);
-            color: var(--text-secondary);
-            text-align: center;
-        }
-
-        /* --- Dynamic Depth Gauge (Left Bar) --- */
+        /* Progress Bar */
         #bar-wrapper {
             position: absolute;
-            left: 20px;
-            top: 50%;
+            left: 20px; top: 50%;
             transform: translateY(-50%);
-            height: 48vh;
-            width: 32px;
+            height: 45vh; width: 34px;
             background: rgba(15, 23, 42, 0.7);
             backdrop-filter: blur(12px);
             border: 1px solid var(--border-glass);
-            border-radius: 16px;
-            padding: 4px;
-            z-index: 15;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
+            border-radius: 17px; padding: 4px;
+            display: flex; flex-direction: column; justify-content: flex-end;
             box-shadow: 0 8px 30px rgba(0,0,0,0.4);
         }
 
         #depth-track {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            border-radius: 12px;
-            overflow: hidden;
+            position: relative; width: 100%; height: 100%;
+            border-radius: 13px; overflow: hidden;
             background: rgba(255,255,255,0.05);
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
+            display: flex; flex-direction: column; justify-content: flex-end;
         }
 
         #depth-fill {
-            width: 100%;
-            height: 0%;
-            border-radius: 12px;
-            background: var(--accent-green);
+            width: 100%; height: 0%;
+            border-radius: 13px; background: var(--accent-green);
             transition: height 0.08s ease-out, background-color 0.1s ease;
         }
 
-        /* Target Difficulty Line */
         #target-marker {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: #FFFFFF;
-            box-shadow: 0 0 8px #FFFFFF;
-            z-index: 3;
-            transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: absolute; left: 0; width: 100%; height: 3px;
+            background: #FFF; box-shadow: 0 0 8px #FFF; z-index: 3;
+            transition: bottom 0.3s ease;
         }
 
-        #target-tag {
+        /* Rep Counter */
+        #counter-hud {
             position: absolute;
-            left: 38px;
-            transform: translateY(50%);
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            background: #FFFFFF;
-            color: #000000;
-            padding: 2px 6px;
-            border-radius: 6px;
-            white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+            left: 50%; transform: translateX(-50%);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: 30px; padding: 16px 40px;
+            display: flex; flex-direction: column; align-items: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
         }
 
-        /* --- Settings Bottom Sheet / Modal --- */
+        #count-num {
+            font-size: 4.5rem; font-weight: 800; line-height: 1; letter-spacing: -2px;
+            transition: transform 0.15s ease;
+        }
+
+        .bump-rep { transform: scale(1.3); color: var(--accent-green) !important; }
+
+        #feedback-badge {
+            margin-top: 6px; font-size: 0.9rem; font-weight: 600;
+            padding: 4px 14px; border-radius: 20px;
+            background: rgba(255,255,255,0.08); color: var(--text-secondary);
+        }
+
+        /* --- SETTINGS MODAL --- */
         #settings-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(8px);
-            z-index: 100;
-            display: none;
-            justify-content: center;
-            align-items: flex-end;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+            z-index: 100; display: none; justify-content: center; align-items: flex-end;
         }
 
         #modal-content {
-            background: #181E29;
-            border-top: 1px solid var(--border-glass);
-            border-radius: 28px 28px 0 0;
-            width: 100%;
-            max-width: 500px;
-            padding: 24px;
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+            background: var(--bg-card); border-top: 1px solid var(--border-glass);
+            border-radius: 32px 32px 0 0; width: 100%; max-width: 500px; padding: 28px;
             animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to { transform: translateY(0); }
-        }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-title { font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 
-        .modal-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .setting-group {
-            margin-bottom: 20px;
-        }
-
-        .setting-label {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .segmented-control {
-            display: flex;
-            background: rgba(255,255,255,0.06);
-            border-radius: 12px;
-            padding: 4px;
-            gap: 4px;
-        }
-
+        .setting-group { margin-bottom: 24px; }
+        .setting-label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; margin-bottom: 12px; display: block; }
+        
+        .segmented-control { display: flex; background: rgba(255,255,255,0.06); border-radius: 14px; padding: 4px; gap: 4px; }
         .segment-btn {
-            flex: 1;
-            border: none;
-            background: transparent;
-            color: var(--text-secondary);
-            padding: 10px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            font-family: inherit;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            flex: 1; border: none; background: transparent; color: var(--text-secondary);
+            padding: 12px; font-size: 0.95rem; font-weight: 700; font-family: inherit;
+            border-radius: 10px; cursor: pointer; transition: all 0.2s ease;
         }
-
-        .segment-btn.active {
-            background: #2D3748;
-            color: #FFFFFF;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-
-        .action-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
+        .segment-btn.active { background: #2D3748; color: #FFFFFF; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
 
         .action-btn {
-            flex: 1;
-            padding: 14px;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            font-family: inherit;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+            width: 100%; padding: 16px; border-radius: 16px; font-size: 1.05rem; font-weight: 700;
+            background: #FFFFFF; color: #000; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
         }
+        .action-btn:active { transform: scale(0.98); }
 
-        .btn-reset {
-            background: rgba(239, 68, 68, 0.15);
-            color: var(--accent-red);
+        /* --- LOADING OVERLAY --- */
+        #loading-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--bg-dark); z-index: 50; display: none; flex-direction: column;
+            justify-content: center; align-items: center;
         }
-
-        .btn-primary {
-            background: #FFFFFF;
-            color: #000000;
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid var(--accent-green);
+            border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-
-        /* --- Start Screen --- */
-        #start-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: #0B0F17;
-            z-index: 50;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 24px;
-            text-align: center;
-        }
-
-        .start-card {
-            background: #141A24;
-            border: 1px solid var(--border-glass);
-            border-radius: 28px;
-            padding: 36px 28px;
-            max-width: 360px;
-            width: 100%;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-        }
-
-        .start-btn {
-            background: #FFFFFF;
-            color: #000000;
-            border: none;
-            border-radius: 16px;
-            padding: 16px 24px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            font-family: inherit;
-            width: 100%;
-            margin-top: 24px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            box-shadow: 0 4px 20px rgba(255,255,255,0.15);
-        }
-
-        .start-btn:active {
-            transform: scale(0.98);
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <!-- Camera & Visual Canvas -->
-    <div id="video-container">
-        <video class="input_video" autoplay playsinline muted></video>
-        <canvas class="output_canvas"></canvas>
-    </div>
-
-    <!-- Top Bar -->
-    <div id="top-bar">
-        <div class="app-pill">
-            <span class="material-symbols-outlined" style="font-size: 20px; color: var(--accent-green);">fitness_center</span>
-            <span id="diff-pill-label" style="font-size: 0.85rem; font-weight: 700;">Standard</span>
-        </div>
-
-        <div style="display: flex; gap: 10px;">
-            <button class="icon-btn" id="sound-btn" aria-label="Toggle Sound">
-                <span class="material-symbols-outlined" id="sound-icon">volume_up</span>
-            </button>
-            <button class="icon-btn" id="settings-btn" aria-label="Settings">
+    <!-- MAIN MENU -->
+    <div id="main-menu" class="screen active">
+        <div class="menu-header">
+            <h1 class="menu-title">AI Coach</h1>
+            <button class="icon-btn" id="open-settings-btn">
                 <span class="material-symbols-outlined">settings</span>
             </button>
         </div>
-    </div>
-
-    <!-- Live Workout Stats (Time & Calories) -->
-    <div id="stats-card">
-        <div class="stat-item">
-            <span class="material-symbols-outlined stat-icon">timer</span>
-            <div>
-                <div class="stat-val" id="time-val">00:00</div>
-                <div class="stat-label">Duration</div>
+        
+        <div class="mode-grid">
+            <div class="mode-card" onclick="startMode('pushups')">
+                <div class="mode-icon"><span class="material-symbols-outlined" style="font-size: 32px;">fitness_center</span></div>
+                <div class="mode-info">
+                    <h3>Pushups</h3>
+                    <p>Track depth and form</p>
+                </div>
+            </div>
+            <div class="mode-card" onclick="startMode('squats')">
+                <div class="mode-icon" style="color: #3B82F6; background: rgba(59, 130, 246, 0.15);">
+                    <span class="material-symbols-outlined" style="font-size: 32px;">directions_walk</span>
+                </div>
+                <div class="mode-info">
+                    <h3>Squats</h3>
+                    <p>Track knee alignment</p>
+                </div>
             </div>
         </div>
-        <div class="stat-item">
-            <span class="material-symbols-outlined stat-icon" style="color: #F59E0B;">local_fire_department</span>
-            <div>
-                <div class="stat-val" id="cal-val">0</div>
-                <div class="stat-label">Est. Kcal</div>
+    </div>
+
+    <!-- WORKOUT SCREEN -->
+    <div id="workout-screen" class="screen">
+        <div id="video-container">
+            <video class="input_video" autoplay playsinline muted></video>
+            <canvas class="output_canvas"></canvas>
+        </div>
+
+        <div id="workout-ui">
+            <div class="top-bar">
+                <button class="icon-btn" onclick="exitWorkout()">
+                    <span class="material-symbols-outlined">arrow_back</span>
+                </button>
+                <div class="app-pill">
+                    <span class="material-symbols-outlined" id="active-icon" style="color: var(--accent-green); font-size: 20px;">fitness_center</span>
+                    <span id="active-mode-label">Pushups</span>
+                </div>
+                <button class="icon-btn" id="sound-btn">
+                    <span class="material-symbols-outlined" id="sound-icon">volume_up</span>
+                </button>
+            </div>
+
+            <div id="stats-card">
+                <div class="stat-item">
+                    <span class="material-symbols-outlined stat-icon">timer</span>
+                    <div>
+                        <div class="stat-val" id="time-val">00:00</div>
+                        <div class="stat-label">Duration</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bar-wrapper">
+                <div id="depth-track">
+                    <div id="target-marker" style="bottom: 75%;"></div>
+                    <div id="depth-fill"></div>
+                </div>
+            </div>
+
+            <div id="counter-hud">
+                <div id="count-num">0</div>
+                <div id="feedback-badge">Ready</div>
             </div>
         </div>
     </div>
 
-    <!-- Pushup Depth Gauge with Target Difficulty Line -->
-    <div id="bar-wrapper">
-        <div id="depth-track">
-            <div id="target-marker" style="bottom: 75%;">
-                <div id="target-tag">Target</div>
-            </div>
-            <div id="depth-fill"></div>
-        </div>
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <h2 style="margin:0; font-size: 1.2rem;">Starting Camera...</h2>
+        <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">Prop your phone against a wall</p>
+        <p id="cam-error" style="color: var(--accent-red); margin-top: 20px; text-align: center; max-width: 80%; display: none;"></p>
+        <button id="cancel-load-btn" style="margin-top: 30px; padding: 12px 24px; border-radius: 20px; background: #333; color: white; border: none; font-weight: bold; display: none;">Go Back</button>
     </div>
 
-    <!-- Central Rep Counter -->
-    <div id="counter-hud">
-        <div id="count-num">0</div>
-        <div id="feedback-badge">Ready</div>
-    </div>
-
-    <!-- Settings Modal -->
+    <!-- SETTINGS MODAL -->
     <div id="settings-modal">
         <div id="modal-content">
             <div class="modal-header">
-                <div class="modal-title">
-                    <span class="material-symbols-outlined">tune</span> Workout Settings
-                </div>
-                <button class="icon-btn" id="close-settings" style="width: 36px; height: 36px;">
+                <div class="modal-title"><span class="material-symbols-outlined">tune</span> Settings</div>
+                <button class="icon-btn" id="close-settings" style="width: 40px; height: 40px;">
                     <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
                 </button>
             </div>
 
             <div class="setting-group">
-                <label class="setting-label">Difficulty Depth</label>
+                <label class="setting-label">Global Difficulty</label>
                 <div class="segmented-control">
-                    <button class="segment-btn" data-diff="easy">Beginner</button>
-                    <button class="segment-btn active" data-diff="medium">Standard</button>
-                    <button class="segment-btn" data-diff="hard">Pro</button>
+                    <button class="segment-btn diff-btn" data-diff="easy">Beginner</button>
+                    <button class="segment-btn diff-btn active" data-diff="medium">Standard</button>
+                    <button class="segment-btn diff-btn" data-diff="hard">Pro</button>
                 </div>
             </div>
 
@@ -540,325 +441,313 @@
                     <button class="segment-btn goal-btn active" data-goal="10">10</button>
                     <button class="segment-btn goal-btn" data-goal="25">25</button>
                     <button class="segment-btn goal-btn" data-goal="50">50</button>
-                    <button class="segment-btn goal-btn" data-goal="0">Freestyle</button>
+                    <button class="segment-btn goal-btn" data-goal="0">None</button>
                 </div>
             </div>
 
-            <div class="action-row">
-                <button class="action-btn btn-reset" id="reset-btn">
-                    <span class="material-symbols-outlined">restart_alt</span> Reset Workout
-                </button>
-                <button class="action-btn btn-primary" id="save-settings">Done</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Onboarding / Camera Start Screen -->
-    <div id="start-overlay">
-        <div class="start-card">
-            <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
-                <span class="material-symbols-outlined" style="font-size: 32px; color: var(--accent-green);">videocam</span>
-            </div>
-            <h2 style="margin: 0 0 8px 0; font-weight: 800; font-size: 1.5rem;">Pushup Challenge</h2>
-            <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5;">
-                Prop your phone on the floor and step back so your full body is in view.
-            </p>
-
-            <button class="start-btn" id="start-app-btn">
-                <span>Start Workout</span>
-                <span class="material-symbols-outlined">arrow_forward</span>
-            </button>
-
-            <div id="camera-err-log" style="color: var(--accent-red); font-size: 0.85rem; margin-top: 14px; display: none;"></div>
+            <button class="action-btn" id="save-settings">Done</button>
         </div>
     </div>
 
     <script>
-        // DOM Elements
-        const videoElement = document.getElementsByClassName('input_video')[0];
-        const canvasElement = document.getElementsByClassName('output_canvas')[0];
-        const canvasCtx = canvasElement.getContext('2d');
-
-        const countNum = document.getElementById('count-num');
-        const feedbackBadge = document.getElementById('feedback-badge');
-        const depthFill = document.getElementById('depth-fill');
-        const targetMarker = document.getElementById('target-marker');
-        const diffPillLabel = document.getElementById('diff-pill-label');
-        const timeVal = document.getElementById('time-val');
-        const calVal = document.getElementById('cal-val');
-
-        const startOverlay = document.getElementById('start-overlay');
-        const startAppBtn = document.getElementById('start-app-btn');
-        const cameraErrLog = document.getElementById('camera-err-log');
-
-        const settingsModal = document.getElementById('settings-modal');
-        const settingsBtn = document.getElementById('settings-btn');
-        const closeSettings = document.getElementById('close-settings');
-        const saveSettings = document.getElementById('save-settings');
-        const resetBtn = document.getElementById('reset-btn');
-        const soundBtn = document.getElementById('sound-btn');
-        const soundIcon = document.getElementById('sound-icon');
-
-        // State variables
-        let pushupCount = 0;
-        let positionState = "up"; // "up" or "down"
-        let isProcessing = false;
-        let soundEnabled = true;
+        /* --- CORE VARIABLES --- */
+        let currentScreen = 'main-menu';
+        let currentMode = 'pushups'; // 'pushups' or 'squats'
+        let currentDiff = 'medium';
         let targetGoal = 10;
+        let soundEnabled = true;
+
+        let pushupCount = 0;
+        let positionState = "up";
+        let isProcessing = false;
         let workoutSeconds = 0;
         let timerInterval = null;
+        let cameraStream = null;
+        let wakeLock = null;
 
-        // Difficulty Preset Configuration
-        const DIFFICULTY_PRESETS = {
-            easy: { name: "Beginner", downAngle: 115, upAngle: 155, targetPercent: 65 },
-            medium: { name: "Standard", downAngle: 95, upAngle: 160, targetPercent: 80 },
-            hard: { name: "Pro", downAngle: 80, upAngle: 165, targetPercent: 95 }
+        // Exercise Configurations
+        const EXERCISE_CONFIG = {
+            pushups: {
+                easy: { downAngle: 115, upAngle: 155, targetPercent: 65 },
+                medium: { downAngle: 95, upAngle: 160, targetPercent: 80 },
+                hard: { downAngle: 80, upAngle: 165, targetPercent: 95 }
+            },
+            squats: {
+                easy: { downAngle: 120, upAngle: 170, targetPercent: 60 },
+                medium: { downAngle: 95, upAngle: 170, targetPercent: 85 },
+                hard: { downAngle: 75, upAngle: 170, targetPercent: 98 }
+            }
         };
 
-        let currentDiff = "medium";
+        // DOM Elements
+        const videoElement = document.querySelector('.input_video');
+        const canvasElement = document.querySelector('.output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const camError = document.getElementById('cam-error');
+        const cancelLoadBtn = document.getElementById('cancel-load-btn');
+        const targetMarker = document.getElementById('target-marker');
+        const activeIcon = document.getElementById('active-icon');
+        const activeModeLabel = document.getElementById('active-mode-label');
 
-        // Web Audio API for Chimes
-        let audioCtx = null;
-
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+        /* --- SCREEN WAKE LOCK (Keeps screen awake) --- */
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {
+                console.log('Wake Lock Error:', err.message);
             }
         }
 
-        function playTone(freq, duration, type = 'sine') {
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => wakeLock = null);
+            }
+        }
+
+        // Re-acquire if tab was minimized and returned
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && currentScreen === 'workout-screen') {
+                requestWakeLock();
+            }
+        });
+
+        /* --- AUDIO & HAPTICS --- */
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTone(freq, duration) {
             if (!soundEnabled || !audioCtx) return;
             try {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                osc.type = type;
                 osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + duration);
-            } catch (e) {
-                console.warn(e);
-            }
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
         }
 
-        function triggerSuccessSound() {
-            playTone(523.25, 0.12); // C5
-            setTimeout(() => playTone(659.25, 0.2), 80); // E5
-        }
+        function vibrate(pattern) { if ("vibrate" in navigator) navigator.vibrate(pattern); }
 
-        function triggerTargetReachedSound() {
-            playTone(440, 0.08); // Quick subtle click
-        }
-
-        // Haptic feedback
-        function vibrate(pattern) {
-            if ("vibrate" in navigator) {
-                navigator.vibrate(pattern);
-            }
-        }
-
-        // Set Difficulty and adjust target marker line
-        function setDifficulty(diffKey) {
-            currentDiff = diffKey;
-            const config = DIFFICULTY_PRESETS[diffKey];
-            diffPillLabel.innerText = config.name;
-            targetMarker.style.bottom = `${config.targetPercent}%`;
-
-            document.querySelectorAll('[data-diff]').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.diff === diffKey);
-            });
-        }
-
-        // Geometry Math: Angle between 3 points
+        /* --- MATH & LOGIC --- */
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
             return angle > 180.0 ? 360.0 - angle : angle;
         }
 
-        // Color generator: Green (0%) -> Yellow (50%) -> Red (100%)
         function getDepthColor(percent) {
             const factor = Math.min(Math.max(percent / 100, 0), 1);
-            // Green is HSL 140, Red is HSL 0
-            const hue = (1.0 - factor) * 140;
-            return `hsl(${hue}, 85%, 48%)`;
+            return `hsl(${(1.0 - factor) * 140}, 85%, 48%)`;
         }
 
-        // MediaPipe Pose Callback
-        function onResults(results) {
+        /* --- MEDIAPIPE POSE CORE --- */
+        const pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+        pose.setOptions({ modelComplexity: 0, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+        pose.onResults((results) => {
+            if (currentScreen !== 'workout-screen') return;
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
             if (results.poseLandmarks) {
-                // Sleek, minimal skeleton styling
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(255, 255, 255, 0.65)', lineWidth: 3 });
-                drawLandmarks(canvasCtx, results.poseLandmarks, { color: '#10B981', lineWidth: 1, radius: 4 });
+                // Draw skeleton
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(255,255,255,0.4)', lineWidth: 2 });
+                drawLandmarks(canvasCtx, results.poseLandmarks, { color: (currentMode === 'pushups' ? '#10B981' : '#3B82F6'), lineWidth: 1, radius: 3 });
 
                 const lm = results.poseLandmarks;
-                const leftVis = (lm[11].visibility + lm[13].visibility + lm[15].visibility);
-                const rightVis = (lm[12].visibility + lm[14].visibility + lm[16].visibility);
+                const config = EXERCISE_CONFIG[currentMode][currentDiff];
+                let isVisible = false;
+                let activeAngle = 0;
+                let bodyAngle = 0;
 
-                let s, e, w, h, a;
-                if (leftVis > rightVis) {
-                    s = lm[11]; e = lm[13]; w = lm[15]; h = lm[23]; a = lm[27];
+                // Determine side facing camera
+                const leftVis = (lm[11].visibility + lm[23].visibility + lm[27].visibility);
+                const rightVis = (lm[12].visibility + lm[24].visibility + lm[28].visibility);
+                const side = leftVis > rightVis ? 'left' : 'right';
+
+                if (currentMode === 'pushups') {
+                    const s = side === 'left' ? lm[11] : lm[12];
+                    const e = side === 'left' ? lm[13] : lm[14];
+                    const w = side === 'left' ? lm[15] : lm[16];
+                    const h = side === 'left' ? lm[23] : lm[24];
+                    const a = side === 'left' ? lm[27] : lm[28];
+                    
+                    isVisible = (s.visibility > 0.4 && e.visibility > 0.4 && h.visibility > 0.4);
+                    activeAngle = calculateAngle(s, e, w); // Arm angle
+                    bodyAngle = calculateAngle(s, h, a);   // Back straightness
                 } else {
-                    s = lm[12]; e = lm[14]; w = lm[16]; h = lm[24]; a = lm[28];
+                    // SQUATS
+                    const s = side === 'left' ? lm[11] : lm[12]; // shoulder
+                    const h = side === 'left' ? lm[23] : lm[24]; // hip
+                    const k = side === 'left' ? lm[25] : lm[26]; // knee
+                    const a = side === 'left' ? lm[27] : lm[28]; // ankle
+                    
+                    isVisible = (h.visibility > 0.4 && k.visibility > 0.4 && a.visibility > 0.4);
+                    activeAngle = calculateAngle(h, k, a); // Knee angle
+                    bodyAngle = 180; // Bypass back check for squats logic here, or add posture check later
                 }
 
-                if (s.visibility > 0.4 && e.visibility > 0.4 && h.visibility > 0.4) {
-                    const armAngle = calculateAngle(s, e, w);
-                    const bodyAngle = calculateAngle(s, h, a);
-
-                    const config = DIFFICULTY_PRESETS[currentDiff];
-
-                    // Form validation
-                    if (bodyAngle < 125) {
-                        feedbackBadge.innerText = "Keep Hips Level";
-                        feedbackBadge.style.color = "var(--accent-red)";
-                        depthFill.style.backgroundColor = "var(--accent-red)";
+                if (isVisible) {
+                    if (currentMode === 'pushups' && bodyAngle < 125) {
+                        setFeedback("Keep Hips Level", "var(--accent-red)");
                     } else {
-                        // Depth calculation relative to current difficulty
+                        // Math for depth progress
                         const range = config.upAngle - config.downAngle;
-                        let depthPercent = ((config.upAngle - armAngle) / range) * 100;
+                        let depthPercent = ((config.upAngle - activeAngle) / range) * 100;
                         depthPercent = Math.max(0, Math.min(105, depthPercent));
 
-                        // Visual progress bar
-                        depthFill.style.height = `${Math.min(100, depthPercent)}%`;
-                        depthFill.style.backgroundColor = getDepthColor(depthPercent);
+                        document.getElementById('depth-fill').style.height = `${Math.min(100, depthPercent)}%`;
+                        document.getElementById('depth-fill').style.backgroundColor = getDepthColor(depthPercent);
 
-                        // State Transition Logic
+                        // State Logic
                         if (positionState === "up") {
                             if (depthPercent >= config.targetPercent) {
                                 positionState = "down";
-                                feedbackBadge.innerText = "Push Up!";
-                                feedbackBadge.style.color = "var(--accent-green)";
-                                triggerTargetReachedSound();
-                                vibrate(25);
+                                setFeedback(currentMode === 'pushups' ? "Push Up!" : "Stand Up!", "var(--accent-green)");
+                                playTone(440, 0.08); vibrate(25);
                             } else {
-                                feedbackBadge.innerText = "Lower Chest...";
-                                feedbackBadge.style.color = "var(--text-secondary)";
+                                setFeedback("Go Lower...", "var(--text-secondary)");
                             }
                         } else if (positionState === "down") {
-                            if (depthPercent <= 12) {
+                            if (depthPercent <= 15) {
                                 positionState = "up";
                                 pushupCount++;
-                                countNum.innerText = pushupCount;
-                                feedbackBadge.innerText = "Good Rep!";
-                                feedbackBadge.style.color = "var(--accent-green)";
-
-                                // Calorie estimate: ~0.35 cal per pushup
-                                calVal.innerText = (pushupCount * 0.35).toFixed(0);
-
-                                triggerSuccessSound();
+                                document.getElementById('count-num').innerText = pushupCount;
+                                setFeedback("Good Rep!", "var(--accent-green)");
+                                
+                                playTone(523.25, 0.12); setTimeout(() => playTone(659.25, 0.2), 80);
                                 vibrate([40, 30, 40]);
 
-                                // Counter Animation
-                                countNum.classList.add('bump-rep');
-                                setTimeout(() => countNum.classList.remove('bump-rep'), 200);
+                                const cn = document.getElementById('count-num');
+                                cn.classList.add('bump-rep');
+                                setTimeout(() => cn.classList.remove('bump-rep'), 200);
 
-                                // Goal celebration check
                                 if (targetGoal > 0 && pushupCount === targetGoal) {
-                                    feedbackBadge.innerText = "Goal Reached! 🏆";
+                                    setFeedback("Goal Reached! 🏆", "var(--accent-blue)");
                                     vibrate([100, 50, 100, 50, 200]);
                                 }
                             } else {
-                                feedbackBadge.innerText = "Extend Arms Fully";
-                                feedbackBadge.style.color = "var(--accent-blue)";
+                                setFeedback(currentMode === 'pushups' ? "Extend Arms" : "Stand Fully", "var(--accent-blue)");
                             }
                         }
                     }
                 } else {
-                    feedbackBadge.innerText = "Step back into frame";
-                    feedbackBadge.style.color = "var(--text-secondary)";
-                    depthFill.style.height = "0%";
+                    setFeedback("Step into frame", "var(--text-secondary)");
+                    document.getElementById('depth-fill').style.height = "0%";
                 }
-            } else {
-                feedbackBadge.innerText = "Searching for body...";
-                feedbackBadge.style.color = "var(--text-secondary)";
             }
+        });
+
+        function setFeedback(text, color) {
+            const badge = document.getElementById('feedback-badge');
+            badge.innerText = text;
+            badge.style.color = color;
         }
 
-        // MediaPipe Pose Initialization
-        const pose = new Pose({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-        });
-
-        pose.setOptions({
-            modelComplexity: 0,
-            smoothLandmarks: true,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
-
-        pose.onResults(onResults);
-
-        // Native Camera Loop
         async function aiLoop() {
-            if (videoElement.readyState >= 2 && !isProcessing) {
+            if (currentScreen === 'workout-screen' && videoElement.readyState >= 2 && !isProcessing) {
                 isProcessing = true;
                 await pose.send({ image: videoElement });
                 isProcessing = false;
             }
-            requestAnimationFrame(aiLoop);
+            if (currentScreen === 'workout-screen') requestAnimationFrame(aiLoop);
         }
 
-        // Timer Functionality
-        function startTimer() {
+        /* --- NAVIGATION & LIFECYCLE --- */
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            currentScreen = screenId;
+        }
+
+        async function startMode(mode) {
+            currentMode = mode;
+            initAudio();
+            requestWakeLock();
+            
+            // Setup UI for mode
+            activeModeLabel.innerText = mode.charAt(0).toUpperCase() + mode.slice(1);
+            activeIcon.innerText = mode === 'pushups' ? 'fitness_center' : 'directions_walk';
+            activeIcon.style.color = mode === 'pushups' ? 'var(--accent-green)' : 'var(--accent-blue)';
+            targetMarker.style.bottom = `${EXERCISE_CONFIG[currentMode][currentDiff].targetPercent}%`;
+            
+            // Reset Stats
+            pushupCount = 0;
+            document.getElementById('count-num').innerText = "0";
+            document.getElementById('depth-fill').style.height = "0%";
             clearInterval(timerInterval);
             workoutSeconds = 0;
-            timerInterval = setInterval(() => {
-                workoutSeconds++;
-                const mins = String(Math.floor(workoutSeconds / 60)).padStart(2, '0');
-                const secs = String(workoutSeconds % 60).padStart(2, '0');
-                timeVal.innerText = `${mins}:${secs}`;
-            }, 1000);
-        }
+            document.getElementById('time-val').innerText = "00:00";
 
-        // Start Workout & Camera
-        startAppBtn.addEventListener('click', async () => {
-            initAudio();
-            startAppBtn.innerText = "Starting Camera...";
-            cameraErrLog.style.display = 'none';
+            loadingOverlay.style.display = 'flex';
+            cancelLoadBtn.style.display = 'block';
+            camError.style.display = 'none';
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
-                    audio: false
-                });
-
-                videoElement.srcObject = stream;
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                videoElement.srcObject = cameraStream;
                 videoElement.onplay = () => {
                     canvasElement.width = videoElement.videoWidth;
                     canvasElement.height = videoElement.videoHeight;
-                    startOverlay.style.display = 'none';
+                    loadingOverlay.style.display = 'none';
+                    switchScreen('workout-screen');
                     startTimer();
                     aiLoop();
                 };
             } catch (err) {
-                cameraErrLog.style.display = 'block';
-                cameraErrLog.innerHTML = `<b>Camera Access Error:</b> ${err.message || 'Permission denied'}. Please check your browser settings.`;
-                startAppBtn.innerText = "Try Again";
+                camError.style.display = 'block';
+                camError.innerText = "Camera Access Denied. Please allow in browser settings.";
             }
+        }
+
+        function exitWorkout() {
+            releaseWakeLock();
+            clearInterval(timerInterval);
+            
+            // Stop Camera hardware to save battery
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                videoElement.srcObject = null;
+            }
+            
+            switchScreen('main-menu');
+        }
+
+        cancelLoadBtn.addEventListener('click', () => {
+            loadingOverlay.style.display = 'none';
+            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
         });
 
-        // Settings Modal Handlers
-        settingsBtn.addEventListener('click', () => settingsModal.style.display = 'flex');
-        closeSettings.addEventListener('click', () => settingsModal.style.display = 'none');
-        saveSettings.addEventListener('click', () => settingsModal.style.display = 'none');
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                workoutSeconds++;
+                const mins = String(Math.floor(workoutSeconds / 60)).padStart(2, '0');
+                const secs = String(workoutSeconds % 60).padStart(2, '0');
+                document.getElementById('time-val').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
 
-        // Difficulty Buttons
-        document.querySelectorAll('[data-diff]').forEach(btn => {
+        /* --- SETTINGS HANDLERS --- */
+        const settingsModal = document.getElementById('settings-modal');
+        document.getElementById('open-settings-btn').addEventListener('click', () => settingsModal.style.display = 'flex');
+        document.getElementById('close-settings').addEventListener('click', () => settingsModal.style.display = 'none');
+        document.getElementById('save-settings').addEventListener('click', () => settingsModal.style.display = 'none');
+
+        document.querySelectorAll('.diff-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                setDifficulty(btn.dataset.diff);
+                document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentDiff = btn.dataset.diff;
             });
         });
 
-        // Goal Buttons
         document.querySelectorAll('.goal-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.goal-btn').forEach(b => b.classList.remove('active'));
@@ -867,24 +756,12 @@
             });
         });
 
-        // Sound Toggle
+        const soundBtn = document.getElementById('sound-btn');
         soundBtn.addEventListener('click', () => {
             soundEnabled = !soundEnabled;
-            soundIcon.innerText = soundEnabled ? 'volume_up' : 'volume_off';
+            document.getElementById('sound-icon').innerText = soundEnabled ? 'volume_up' : 'volume_off';
             soundBtn.style.opacity = soundEnabled ? '1' : '0.6';
         });
-
-        // Reset Workout
-        resetBtn.addEventListener('click', () => {
-            pushupCount = 0;
-            countNum.innerText = "0";
-            calVal.innerText = "0";
-            startTimer();
-            settingsModal.style.display = 'none';
-        });
-
-        // Initial setup
-        setDifficulty("medium");
     </script>
 </body>
 </html>
