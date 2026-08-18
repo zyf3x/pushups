@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Pushup Challenge - Easy Mode</title>
+    <title>Arcade Pushup AI</title>
     
     <!-- MediaPipe Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Rajdhani:wght@600;700&display=swap');
+
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #121212;
+            margin: 0; padding: 0;
+            background-color: #000;
             color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Rajdhani', sans-serif;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -23,174 +24,160 @@
             width: 100vw;
         }
 
-        /* Top UI Header */
+        /* --- Gamified UI --- */
         #ui-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 15px 20px;
-            box-sizing: border-box;
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            position: absolute; top: 0; left: 0;
+            width: 100%; padding: 20px;
+            box-sizing: border-box; z-index: 10;
+            display: flex; justify-content: space-between;
             pointer-events: none;
         }
 
         .hud-box {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
             border-radius: 12px;
-            border: 1px solid #444;
-            backdrop-filter: blur(4px);
+            border: 2px solid #00E5FF;
+            box-shadow: 0 0 10px #00E5FF;
+            text-align: center;
+            transition: all 0.2s ease;
         }
 
         #count-display {
-            font-size: 2.8rem;
-            font-weight: 900;
-            color: #4CAF50;
+            font-family: 'Black Ops One', cursive;
+            font-size: 4rem;
+            color: #00E5FF;
+            text-shadow: 0 0 15px #00E5FF;
             line-height: 1;
-            margin-top: 5px;
         }
 
-        #feedback-display {
-            font-size: 1.1rem;
-            font-weight: bold;
-            text-align: right;
-            margin-top: 5px;
+        /* Pop animation for when a rep is counted */
+        .pop-anim {
+            animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5); filter: brightness(2); }
+            100% { transform: scale(1); }
         }
 
-        .good-form { color: #4CAF50; }
-        .bad-form { color: #F44336; }
-        .warning { color: #FFC107; }
-        .push-up { color: #2196F3; }
-
-        /* Video Container */
-        #video-container {
-            flex-grow: 1;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-            background: #000;
+        #level-display {
+            color: #FF00FF;
+            font-size: 1.2rem;
+            text-shadow: 0 0 8px #FF00FF;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
-        .input_video { display: none; }
-
-        .output_canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1); /* Mirror effect */
-        }
-
-        /* Progress Bar UI */
+        /* Progress Bar (Neon) */
         #progress-container {
             position: absolute;
-            left: 20px;
-            top: 50%;
+            left: 20px; top: 50%;
             transform: translateY(-50%);
-            width: 30px;
-            height: 50vh;
-            background: rgba(0,0,0,0.6);
-            border: 2px solid #555;
-            border-radius: 15px;
-            overflow: hidden;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-end;
+            width: 20px; height: 50vh;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden; z-index: 10;
+            display: flex; flex-direction: column; justify-content: flex-end;
+            box-shadow: inset 0 0 10px #000;
         }
 
         #progress-bar {
-            width: 100%;
-            height: 0%;
-            background-color: #FFC107;
-            transition: height 0.1s ease-out, background-color 0.2s;
+            width: 100%; height: 0%;
+            background: linear-gradient(to top, #FF0055, #FFEA00);
+            transition: height 0.1s linear, background 0.3s;
+            box-shadow: 0 0 15px #FFEA00;
         }
 
-        /* Overlays & Buttons */
-        #overlay-message {
+        /* --- ZERO LATENCY VIDEO OVERLAY --- */
+        #video-container {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 20;
-            text-align: center;
-            background: rgba(20, 20, 20, 0.95);
-            padding: 30px 20px;
-            border-radius: 16px;
-            border: 1px solid #555;
-            width: 85%;
-            max-width: 350px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; background: #111;
         }
-        
-        .spinner {
-            border: 4px solid rgba(255,255,255,0.2);
-            border-top: 4px solid #4CAF50;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px auto;
-            display: none;
+
+        /* Video plays smoothly underneath */
+        .input_video {
+            position: absolute;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+
+        /* Canvas is completely transparent and just draws the skeleton on top */
+        .output_canvas {
+            position: absolute;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Intro Screen */
+        #overlay-message {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20; text-align: center;
+            background: rgba(10, 10, 20, 0.95);
+            padding: 30px; border-radius: 20px;
+            border: 2px solid #00E5FF;
+            width: 85%; max-width: 400px;
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.4);
+            pointer-events: auto;
         }
 
         #start-btn {
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            color: white;
-            border: none;
-            padding: 18px 30px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            border-radius: 12px;
-            cursor: pointer;
-            margin-top: 20px;
-            width: 100%;
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+            background: #00E5FF; color: #000;
+            border: none; padding: 15px 30px;
+            font-size: 1.5rem; font-weight: bold;
+            font-family: 'Rajdhani', sans-serif;
+            border-radius: 8px; cursor: pointer;
+            margin-top: 20px; width: 100%;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px #00E5FF;
+            transition: 0.2s;
         }
+        #start-btn:active { transform: scale(0.95); }
 
-        #start-btn:active {
-            transform: scale(0.98);
+        #error-log {
+            color: #FF0055; font-size: 0.9rem;
+            margin-top: 15px; word-wrap: break-word;
         }
-
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
     <div id="overlay-message">
-        <div class="spinner" id="spinner"></div>
-        <div id="message-text">
-            <h2 style="margin: 0 0 10px 0; font-size: 1.5rem;">AI Pushup Tracker</h2>
-            <span style="font-size: 1rem; color: #ccc; line-height: 1.4; display: block;">
-                Prop your phone against a wall.<br>Make sure your whole body is visible.
-            </span>
-        </div>
-        <button id="start-btn">Allow Camera & Start</button>
+        <h1 style="margin: 0; font-family: 'Black Ops One'; color: #00E5FF; font-size: 2.5rem;">READY?</h1>
+        <p style="color: #ccc; font-size: 1.2rem;">Sound ON! 🔊<br>Get your whole body in frame.</p>
+        <button id="start-btn">START CAMERA</button>
+        <div id="error-log"></div>
     </div>
 
-    <!-- The Progress Bar on the left -->
     <div id="progress-container">
         <div id="progress-bar"></div>
     </div>
 
     <div id="ui-container">
-        <div class="hud-box">
-            <div style="font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Pushups</div>
+        <div class="hud-box" id="score-box">
+            <div id="level-display">ROOKIE</div>
             <div id="count-display">0</div>
         </div>
-        <div class="hud-box" style="display: flex; flex-direction: column; align-items: flex-end;">
-            <div style="font-size: 0.8rem; color: #aaa; text-transform: uppercase; font-weight: bold;">Form Status</div>
-            <div id="feedback-display" class="warning">Waiting...</div>
+        <div class="hud-box" style="border-color: #FF00FF; box-shadow: 0 0 10px #FF00FF;">
+            <div style="color: #FF00FF; font-weight: bold; text-transform: uppercase;">Tracker</div>
+            <div id="feedback-display" style="font-size: 1.3rem; margin-top: 5px;">Stand by</div>
         </div>
     </div>
 
     <div id="video-container">
+        <!-- Visible video layer handles camera feed natively = 0 lag -->
         <video class="input_video" autoplay playsinline muted></video>
+        <!-- Transparent canvas layer just for drawing lines -->
         <canvas class="output_canvas"></canvas>
     </div>
 
@@ -201,211 +188,173 @@
         
         const countDisplay = document.getElementById('count-display');
         const feedbackDisplay = document.getElementById('feedback-display');
+        const levelDisplay = document.getElementById('level-display');
+        const scoreBox = document.getElementById('score-box');
         const overlayMessage = document.getElementById('overlay-message');
-        const messageText = document.getElementById('message-text');
-        const spinner = document.getElementById('spinner');
         const startBtn = document.getElementById('start-btn');
+        const errorLog = document.getElementById('error-log');
         const progressBar = document.getElementById('progress-bar');
 
         let pushupCount = 0;
         let positionState = "up"; 
-        let isModelLoaded = false;
-        let lastVideoTime = -1;
+        let isProcessing = false; // Prevents AI frame overlap
 
-        // --- LENIENT SETTINGS (Easy Mode) ---
-        const UP_ANGLE = 150;    // You don't have to lock your arms completely (180 is full lock)
-        const DOWN_ANGLE = 105;  // You don't have to go all the way down (90 is standard)
-        const BACK_ANGLE = 130;  // Very forgiving on back straightness
-        // ------------------------------------
+        // Audio Context for the "DING!" sound
+        let audioCtx;
 
-        // Math to calculate body angles
+        function playDing() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'square'; // Arcade sound
+            osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1); // Slide up to A5
+            
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        }
+
         function calculateAngle(a, b, c) {
             const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
             let angle = Math.abs(radians * 180.0 / Math.PI);
-            if (angle > 180.0) {
-                angle = 360.0 - angle;
-            }
-            return angle;
+            return angle > 180.0 ? 360.0 - angle : angle;
         }
 
-        // Processing each frame from the AI
-        function onResults(results) {
-            if (!isModelLoaded) {
-                isModelLoaded = true;
-                overlayMessage.style.display = 'none';
-            }
+        function updateLevel() {
+            if (pushupCount >= 20) levelDisplay.innerText = "BEAST MODE";
+            else if (pushupCount >= 10) levelDisplay.innerText = "WARRIOR";
+            else if (pushupCount >= 5) levelDisplay.innerText = "FIGHTER";
+        }
 
-            canvasCtx.save();
+        function onResults(results) {
+            // ONLY CLEAR AND DRAW SKELETON. Do NOT draw the video. 
+            // The video plays natively underneath this transparent canvas. (Zero lag!)
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.poseLandmarks) {
-                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 3});
-                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FFC107', lineWidth: 1, radius: 3});
+                // Draw cool neon skeleton
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00E5FF', lineWidth: 4});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF00FF', lineWidth: 2, radius: 4});
 
-                const landmarks = results.poseLandmarks;
+                const lm = results.poseLandmarks;
+                const leftVis = (lm[11].visibility + lm[13].visibility + lm[15].visibility);
+                const rightVis = (lm[12].visibility + lm[14].visibility + lm[16].visibility);
                 
-                // Determine which side is facing the camera
-                const leftVis = (landmarks[11].visibility + landmarks[13].visibility + landmarks[15].visibility);
-                const rightVis = (landmarks[12].visibility + landmarks[14].visibility + landmarks[16].visibility);
-                
-                let shoulder, elbow, wrist, hip, ankle;
-
+                let s, e, w, h, a; // shoulder, elbow, wrist, hip, ankle
                 if (leftVis > rightVis) {
-                    shoulder = landmarks[11]; elbow = landmarks[13]; wrist = landmarks[15];
-                    hip = landmarks[23]; ankle = landmarks[27];
+                    s=lm[11]; e=lm[13]; w=lm[15]; h=lm[23]; a=lm[27];
                 } else {
-                    shoulder = landmarks[12]; elbow = landmarks[14]; wrist = landmarks[16];
-                    hip = landmarks[24]; ankle = landmarks[28];
+                    s=lm[12]; e=lm[14]; w=lm[16]; h=lm[24]; a=lm[28];
                 }
 
-                // Make sure we can see the person
-                if (shoulder.visibility > 0.4 && elbow.visibility > 0.4 && wrist.visibility > 0.4 && hip.visibility > 0.4) {
-                    
-                    const armAngle = calculateAngle(shoulder, elbow, wrist);
-                    const bodyAngle = calculateAngle(shoulder, hip, ankle);
+                if (s.visibility > 0.4 && e.visibility > 0.4 && h.visibility > 0.4) {
+                    const armAngle = calculateAngle(s, e, w);
+                    const bodyAngle = calculateAngle(s, h, a);
 
-                    let feedbackText = "";
-                    let feedbackClass = "";
-
-                    // Check if back is somewhat straight (very lenient)
-                    const isBackStraight = bodyAngle > BACK_ANGLE;
-                    
-                    if (!isBackStraight) {
-                        feedbackText = "Lower your hips!";
-                        feedbackClass = "bad-form";
-                        progressBar.style.backgroundColor = "#F44336"; // Red bar for bad form
+                    if (bodyAngle < 120) {
+                        feedbackDisplay.innerText = "Straighten Back!";
+                        progressBar.style.background = "#FF0055";
                     } else {
-                        // Calculate Depth Percentage for Progress Bar
-                        // 0% when arm is straight (UP_ANGLE), 100% when bent (DOWN_ANGLE)
-                        let depthPercent = ((UP_ANGLE - armAngle) / (UP_ANGLE - DOWN_ANGLE)) * 100;
-                        depthPercent = Math.max(0, Math.min(100, depthPercent)); // Keep between 0-100
-                        
+                        // Depth calculation (Super easy mode: Top is 150deg, Bottom is 110deg)
+                        let depthPercent = ((150 - armAngle) / (150 - 110)) * 100;
+                        depthPercent = Math.max(0, Math.min(100, depthPercent));
                         progressBar.style.height = `${depthPercent}%`;
 
-                        // Pushup Logic
                         if (positionState === "up") {
                             if (depthPercent >= 100) {
-                                // Reached the bottom!
                                 positionState = "down";
-                                progressBar.style.backgroundColor = "#4CAF50"; // Green
-                                feedbackText = "Now Push UP!";
-                                feedbackClass = "good-form";
+                                feedbackDisplay.innerText = "PUSH!";
+                                progressBar.style.background = "#00E5FF"; // Neon Blue at bottom
                             } else {
-                                // Going down
-                                progressBar.style.backgroundColor = "#FFC107"; // Yellow
-                                feedbackText = "Go Lower...";
-                                feedbackClass = "warning";
+                                feedbackDisplay.innerText = "Lower...";
+                                progressBar.style.background = "linear-gradient(to top, #FF0055, #FFEA00)";
                             }
                         } else if (positionState === "down") {
-                            if (depthPercent <= 0) {
-                                // Reached the top!
+                            if (depthPercent <= 5) {
                                 positionState = "up";
                                 pushupCount++;
                                 countDisplay.innerText = pushupCount;
-                                feedbackText = "Great rep!";
-                                feedbackClass = "good-form";
+                                feedbackDisplay.innerText = "PERFECT!";
+                                updateLevel();
+                                
+                                // Arcade Pop Effects
+                                playDing();
+                                countDisplay.classList.remove("pop-anim");
+                                void countDisplay.offsetWidth; // Trigger reflow
+                                countDisplay.classList.add("pop-anim");
+                                
+                                scoreBox.style.boxShadow = "0 0 30px #00E5FF";
+                                setTimeout(() => scoreBox.style.boxShadow = "0 0 10px #00E5FF", 300);
+
                             } else {
-                                // Pushing up
-                                progressBar.style.backgroundColor = "#2196F3"; // Blue
-                                feedbackText = "Keep Pushing!";
-                                feedbackClass = "push-up";
+                                feedbackDisplay.innerText = "Keep going up!";
                             }
                         }
                     }
-
-                    feedbackDisplay.innerText = feedbackText;
-                    feedbackDisplay.className = feedbackClass;
-
                 } else {
-                    // Can't see enough of the body
-                    feedbackDisplay.innerText = "Step back more";
-                    feedbackDisplay.className = "bad-form";
-                    progressBar.style.height = "0%";
+                    feedbackDisplay.innerText = "Show whole body";
                 }
             } else {
-                feedbackDisplay.innerText = "No one detected";
-                feedbackDisplay.className = "bad-form";
+                feedbackDisplay.innerText = "Searching...";
             }
-            canvasCtx.restore();
         }
 
-        // Initialize AI Model
-        const pose = new Pose({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-        }});
-
+        const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
         pose.setOptions({
             modelComplexity: 0, 
             smoothLandmarks: true,
-            enableSegmentation: false,
-            smoothSegmentation: false,
             minDetectionConfidence: 0.5,
             minTrackingConfidence: 0.5
         });
-
         pose.onResults(onResults);
 
-        // Native Camera Loop
-        async function processVideo() {
-            if (videoElement.readyState >= 2) {
-                if (videoElement.currentTime !== lastVideoTime) {
-                    lastVideoTime = videoElement.currentTime;
-                    await pose.send({image: videoElement});
-                }
+        // AI Loop - decoupled from video rendering to ensure smoothness
+        async function aiLoop() {
+            if (videoElement.readyState >= 2 && !isProcessing) {
+                isProcessing = true;
+                await pose.send({image: videoElement});
+                isProcessing = false;
             }
-            requestAnimationFrame(processVideo);
+            requestAnimationFrame(aiLoop);
         }
 
-        // Start Button Logic with robust Permission Handling
         startBtn.addEventListener('click', async () => {
+            // Initialize Audio on user click (Required for Apple/Google rules)
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
             
-            // Check if browser actually supports cameras (e.g. not an in-app browser)
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                messageText.innerHTML = `
-                    <h3 style="color:#F44336; margin:0 0 10px 0;">Browser Not Supported</h3>
-                    <span style="font-size: 0.9rem;">
-                    Your current browser completely blocks cameras.<br><br>
-                    <strong>Fix:</strong> Open this link directly in <b>Safari</b> or <b>Chrome</b>.
-                    </span>
-                `;
-                return;
-            }
+            startBtn.innerText = "LOADING...";
+            errorLog.innerText = "";
 
-            startBtn.style.display = 'none';
-            spinner.style.display = 'block';
-            messageText.innerHTML = "<strong>Loading AI Model...</strong><br><span style='font-size: 0.9rem; color: #FFC107;'>If a popup appears, tap 'Allow'</span>";
-            
             try {
-                // Request camera permission explicitly
+                // The most forgiving camera request possible. No resolutions, just ask for the front camera.
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    video: { facingMode: 'user' }, 
                     audio: false
                 });
 
                 videoElement.srcObject = stream;
                 
-                videoElement.onloadedmetadata = () => {
-                    videoElement.play();
-                    
-                    // Match canvas to video size for perfect tracking overlay
+                videoElement.onplay = () => {
+                    // Sync the transparent canvas exactly to the video size
                     canvasElement.width = videoElement.videoWidth;
                     canvasElement.height = videoElement.videoHeight;
                     
-                    // Start feeding AI
-                    requestAnimationFrame(processVideo);
+                    overlayMessage.style.display = 'none';
+                    aiLoop(); // Start AI tracking
                 };
+                
             } catch (err) {
-                spinner.style.display = 'none';
-                startBtn.style.display = 'block';
-                startBtn.innerText = "Try Again";
-                messageText.innerHTML = `
-                    <h3 style="color:#F44336; margin:0 0 10px 0;">Camera Blocked</h3>
-                    <span style="font-size: 0.9rem;">
-                    You must allow camera access for this to work.<br><br>
-                    <strong>Fix:</strong> Check your browser URL bar for a camera icon with a red slash, or check your phone Settings to ensure Safari/Chrome has camera access.
-                    </span>
-                `;
+                startBtn.innerText = "RETRY";
+                // Dump the exact error to the screen so you know exactly why the phone is blocking it
+                errorLog.innerHTML = `⚠️ <b>${err.name}</b>: ${err.message}<br><br>Make sure you didn't click "Deny", and that your browser has camera settings enabled.`;
+                console.error(err);
             }
         });
     </script>
