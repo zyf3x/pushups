@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Pushup Challenge</title>
+    
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+        }
+
+        .hud-box {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+
+        #count-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        #feedback-display {
+            font-size: 1rem;
+            font-weight: bold;
+            text-align: right;
+            max-width: 50%;
+        }
+
+        .good-form { color: #4CAF50; }
+        .bad-form { color: #F44336; }
+        .warning { color: #FFC107; }
+
+        #video-container {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* The video element is hidden; we draw onto the canvas instead */
+        .input_video {
+            display: none;
+        }
+
+        .output_canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror effect for front camera */
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 20;
+            text-align: center;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        Loading AI Model...<br>
+        <span style="font-size: 0.9rem; color: #aaa;">Please allow camera access</span>
+    </div>
+
+    <div id="ui-container">
+        <div class="hud-box">
+            <div style="font-size: 0.9rem; color: #aaa; text-transform: uppercase;">Pushups</div>
+            <div id="count-display">0</div>
+        </div>
+        <div class="hud-box" style="display: flex; flex-direction: column; align-items: flex-end;">
+            <div style="font-size: 0.9rem; color: #aaa; text-transform: uppercase;">Form Status</div>
+            <div id="feedback-display" class="warning">Position yourself</div>
+        </div>
+    </div>
+
+    <div id="video-container">
+        <!-- playsinline is critical for iOS mobile browsers -->
+        <video class="input_video" autoplay playsinline></video>
+        <canvas class="output_canvas" width="720" height="1280"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const countDisplay = document.getElementById('count-display');
+        const feedbackDisplay = document.getElementById('feedback-display');
+        const loadingScreen = document.getElementById('loading');
+
+        // State variables
+        let pushupCount = 0;
+        let positionState = "up"; // "up" or "down"
+        let isModelLoaded = false;
+
+        // Utility: Calculate angle between three points (A, B, C) where B is the vertex
+        function calculateAngle(a, b, c) {
+            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            if (angle > 180.0) {
+                angle = 360.0 - angle;
+            }
+            return angle;
+        }
+
+        function onResults(results) {
+            if (!isModelLoaded) {
+                isModelLoaded = true;
+                loadingScreen.style.display = 'none';
+            }
+
+            // Draw video and landmarks
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.poseLandmarks) {
+                drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#ffffff', lineWidth: 4});
+                drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#4CAF50', lineWidth: 2, radius: 4});
+
+                // Extract landmarks
+                const landmarks = results.poseLandmarks;
+                
+                // Determine which side of the body is more visible to use for calculations
+                const leftVisibility = (landmarks[11].visibility + landmarks[13].visibility + landmarks[15].visibility) / 3;
+                const rightVisibility = (landmarks[12].visibility + landmarks[14].visibility + landmarks[16].visibility) / 3;
+                
+                let shoulder, elbow, wrist, hip, ankle;
+
+                if (leftVisibility > rightVisibility) {
+                    shoulder = landmarks[11];
+                    elbow = landmarks[13];
+                    wrist = landmarks[15];
+                    hip = landmarks[23];
+                    ankle = landmarks[27];
+                } else {
+                    shoulder = landmarks[12];
+                    elbow = landmarks[14];
+                    wrist = landmarks[16];
+                    hip = landmarks[24];
+                    ankle = landmarks[28];
+                }
+
+                // Check if we can see enough of the body
+                if (shoulder.visibility > 0.5 && elbow.visibility > 0.5 && wrist.visibility > 0.5 && hip.visibility > 0.5) {
+                    
+                    // Calculate angles
+                    const armAngle = calculateAngle(shoulder, elbow, wrist);
+                    const bodyAngle = calculateAngle(shoulder, hip, ankle);
+
+                    let feedbackText = "Looking Good!";
+                    let feedbackClass = "good-form";
+
+                    // Form check: body should be relatively straight (angle around 160-180)
+                    const isBackStraight = bodyAngle > 150 && bodyAngle < 190;
+                    
+                    if (!isBackStraight) {
+                        feedbackText = "Keep back straight!";
+                        feedbackClass = "bad-form";
+                    } else {
+                        // Pushup counting logic
+                        if (armAngle > 160) {
+                            if (positionState === "down") {
+                                // Completed a rep
+                                pushupCount++;
+                                countDisplay.innerText = pushupCount;
+                            }
+                            positionState = "up";
+                        }
+                        
+                        if (armAngle < 90) {
+                            if (positionState === "up") {
+                                positionState = "down";
+                            }
+                        }
+
+                        if (positionState === "up" && armAngle < 160 && armAngle > 90) {
+                             feedbackText = "Go lower!";
+                             feedbackClass = "warning";
+                        }
+                        
+                        if (positionState === "down") {
+                             feedbackText = "Push up!";
+                             feedbackClass = "warning";
+                        }
+                    }
+
+                    feedbackDisplay.innerText = feedbackText;
+                    feedbackDisplay.className = feedbackClass;
+
+                } else {
+                    feedbackDisplay.innerText = "Step back to show whole body";
+                    feedbackDisplay.className = "warning";
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        // Initialize MediaPipe Pose
+        const pose = new Pose({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+        }});
+
+        pose.setOptions({
+            modelComplexity: 0, // 0 is fastest, better for mobile. 1 or 2 is more accurate.
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            smoothSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults(onResults);
+
+        // Setup Camera
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({image: videoElement});
+            },
+            width: 720,
+            height: 1280,
+            facingMode: 'user' // Front facing camera
+        });
+
+        camera.start();
+    </script>
+</body>
+</html>
