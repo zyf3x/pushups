@@ -59,7 +59,7 @@
         }
         .screen.active { display: flex; }
 
-        /* --- INTRO GATEWAY (FULLSCREEN PROMPT) --- */
+        /* --- INTRO GATEWAY --- */
         #intro-screen {
             justify-content: center; align-items: center; background: var(--bg-dark);
             padding: 24px; text-align: center;
@@ -94,9 +94,7 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        /* Stats Cards */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-        
         .stat-card {
             background: var(--bg-card); border: 1px solid var(--border-glass);
             border-radius: 24px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -127,7 +125,6 @@
             box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
         }
 
-        /* Mode Cards */
         .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 16px; }
         .mode-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
         .mode-card {
@@ -196,7 +193,7 @@
             background: rgba(255,255,255,0.1); color: var(--text-secondary); text-align: center;
         }
 
-        /* --- FLOATING MODALS (Setup & Settings) --- */
+        /* --- MODALS --- */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
@@ -272,7 +269,6 @@
             </button>
         </div>
 
-        <!-- Lifetime Stats -->
         <div class="grid-2">
             <div class="stat-card">
                 <div class="icon-row">
@@ -290,7 +286,6 @@
             </div>
         </div>
 
-        <!-- Streak Card -->
         <div class="fire-card">
             <div class="fire-header">
                 <div class="fire-title"><span class="material-symbols-outlined" style="color:var(--accent-fire);">local_fire_department</span> Streak</div>
@@ -322,7 +317,7 @@
         </div>
     </div>
 
-    <!-- SETUP MODAL (Appears before workout) -->
+    <!-- SETUP MODAL -->
     <div id="setup-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -396,7 +391,6 @@
                     <span class="material-symbols-outlined" id="active-icon" style="color: var(--accent-green); font-size: 20px;">fitness_center</span>
                     <span id="active-mode-label">Pushups</span>
                 </div>
-                <!-- Empty div for spacing balance -->
                 <div style="width: 48px;"></div>
             </div>
 
@@ -443,7 +437,6 @@
         let currentScreen = 'intro-screen';
         let currentMode = 'pushups';
         
-        // Settings loaded from local storage
         let activeDifficulty = 'easy';
         let activeGoal = 10;
         let soundEnabled = true;
@@ -456,7 +449,7 @@
         let timerInterval = null;
         let cameraStream = null;
         let wakeLock = null;
-        let isUserFullyVisible = false; // Controls calorie burn state
+        let isUserFullyVisible = false;
 
         const EXERCISE_CONFIG = {
             pushups: {
@@ -477,12 +470,21 @@
         const depthFill = document.getElementById('depth-fill');
         const fbBadge = document.getElementById('feedback-badge');
 
-        /* --- LOCAL STORAGE & DATA SYSTEM --- */
+        /* --- LOCAL STORAGE FIXES (Handles older saves properly) --- */
         function getStorageData() {
             let data = JSON.parse(localStorage.getItem('aiCoachData'));
+            
+            // If completely empty, generate fresh schema
             if (!data) {
-                data = { history: {}, totalDays: 0, totalPushups: 0, totalSquats: 0, settings: { diff: 'easy', goal: 10, sound: true } };
+                data = { history: {}, totalPushups: 0, totalSquats: 0, settings: { diff: 'easy', goal: 10, sound: true } };
             }
+            
+            // Safely patch older save structures so the app NEVER crashes
+            if (!data.history) data.history = {};
+            if (data.totalPushups === undefined) data.totalPushups = 0;
+            if (data.totalSquats === undefined) data.totalSquats = 0;
+            if (!data.settings) data.settings = { diff: 'easy', goal: 10, sound: true };
+
             return data;
         }
 
@@ -494,13 +496,9 @@
             let data = getStorageData();
             const today = new Date().toISOString().split('T')[0];
             
-            // Mark today in history
-            if (!data.history[today]) {
-                data.history[today] = 0;
-            }
+            if (!data.history[today]) data.history[today] = 0;
             data.history[today] += 1;
 
-            // Lifetime stats
             if (mode === 'pushups') data.totalPushups += 1;
             if (mode === 'squats') data.totalSquats += 1;
             
@@ -508,36 +506,41 @@
         }
 
         function loadDashboardStats() {
-            const data = getStorageData();
-            document.getElementById('lt-pushups').innerText = data.totalPushups;
-            document.getElementById('lt-squats').innerText = data.totalSquats;
+            try {
+                const data = getStorageData();
+                document.getElementById('lt-pushups').innerText = data.totalPushups;
+                document.getElementById('lt-squats').innerText = data.totalSquats;
 
-            // Sound setting restore
-            soundEnabled = data.settings.sound !== false;
-            document.getElementById('sound-icon').innerText = soundEnabled ? 'volume_up' : 'volume_off';
-            document.getElementById('sound-btn').style.opacity = soundEnabled ? '1' : '0.6';
+                soundEnabled = data.settings.sound !== false;
+                document.getElementById('sound-icon').innerText = soundEnabled ? 'volume_up' : 'volume_off';
+                document.getElementById('sound-btn').style.opacity = soundEnabled ? '1' : '0.6';
 
-            // Setup modal memory restore
-            activeDifficulty = data.settings.diff || 'easy';
-            activeGoal = data.settings.goal || 10;
-            
-            document.querySelectorAll('.diff-btn').forEach(b => {
-                b.classList.toggle('active', b.dataset.diff === activeDifficulty);
-            });
+                activeDifficulty = data.settings.diff || 'easy';
+                activeGoal = data.settings.goal || 10;
+                
+                document.querySelectorAll('.diff-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.diff === activeDifficulty);
+                });
 
-            // Target goal memory
-            const customInput = document.getElementById('custom-goal-input');
-            document.querySelectorAll('.goal-btn').forEach(b => b.classList.remove('active'));
-            if ([10, 25, 50].includes(activeGoal)) {
-                document.querySelector(`.goal-btn[data-goal="${activeGoal}"]`).classList.add('active');
-                customInput.style.display = 'none';
-            } else {
-                document.getElementById('custom-goal-btn').classList.add('active');
-                customInput.style.display = 'block';
-                customInput.value = activeGoal;
+                const customInput = document.getElementById('custom-goal-input');
+                document.querySelectorAll('.goal-btn').forEach(b => b.classList.remove('active'));
+                
+                // Safely apply goal active class
+                const standardGoals = [10, 25, 50];
+                if (standardGoals.includes(activeGoal)) {
+                    const btnToActivate = document.querySelector(`.goal-btn[data-goal="${activeGoal}"]`);
+                    if(btnToActivate) btnToActivate.classList.add('active');
+                    customInput.style.display = 'none';
+                } else {
+                    document.getElementById('custom-goal-btn').classList.add('active');
+                    customInput.style.display = 'block';
+                    customInput.value = activeGoal;
+                }
+
+                renderWeeklyFire(data);
+            } catch (err) {
+                console.error("Dashboard Load Error:", err);
             }
-
-            renderWeeklyFire(data);
         }
 
         function renderWeeklyFire(data) {
@@ -560,13 +563,12 @@
                     </div>
                 `;
             }
-            // Streak Total Days active
             const totalDaysActive = Object.keys(data.history).length;
             document.getElementById('streak-count').innerText = `${totalDaysActive} Days Total`;
         }
 
         function resetAllData() {
-            if(confirm("Are you sure you want to delete all lifetime stats and streaks?")) {
+            if(confirm("Delete all lifetime stats and streaks?")) {
                 localStorage.removeItem('aiCoachData');
                 loadDashboardStats();
                 closeSettingsModal();
@@ -576,7 +578,6 @@
         /* --- FULLSCREEN & INIT --- */
         document.getElementById('enter-app-btn').addEventListener('click', async () => {
             initAudio();
-            // Force Fullscreen if supported
             try {
                 if (document.documentElement.requestFullscreen) {
                     await document.documentElement.requestFullscreen();
@@ -598,7 +599,6 @@
         }
         function closeSetupModal() { setupModal.classList.remove('show'); }
 
-        // Setup Button Handlers
         document.querySelectorAll('.diff-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
@@ -628,7 +628,6 @@
                 activeGoal = isNaN(val) || val <= 0 ? 10 : val;
             }
 
-            // Save settings to storage
             let data = getStorageData();
             data.settings.diff = activeDifficulty;
             data.settings.goal = activeGoal;
@@ -685,7 +684,7 @@
         pose.onResults((results) => {
             if (currentScreen !== 'workout-screen') return;
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            isUserFullyVisible = false; // Default to false until proven true
+            isUserFullyVisible = false;
 
             if (results.poseLandmarks) {
                 drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, { color: 'rgba(255,255,255,0.4)', lineWidth: 2 });
@@ -694,22 +693,20 @@
                 const lm = results.poseLandmarks;
                 const config = EXERCISE_CONFIG[currentMode][activeDifficulty];
                 
-                // Which side is facing camera
                 const leftVis = (lm[11].visibility + lm[23].visibility + lm[27].visibility);
                 const rightVis = (lm[12].visibility + lm[24].visibility + lm[28].visibility);
                 const side = leftVis > rightVis ? 'left' : 'right';
 
-                // Map joints
-                const s = side === 'left' ? lm[11] : lm[12]; // shoulder
-                const e = side === 'left' ? lm[13] : lm[14]; // elbow
-                const w = side === 'left' ? lm[15] : lm[16]; // wrist
-                const h = side === 'left' ? lm[23] : lm[24]; // hip
-                const k = side === 'left' ? lm[25] : lm[26]; // knee
-                const a = side === 'left' ? lm[27] : lm[28]; // ankle
+                const s = side === 'left' ? lm[11] : lm[12]; 
+                const e = side === 'left' ? lm[13] : lm[14]; 
+                const w = side === 'left' ? lm[15] : lm[16]; 
+                const h = side === 'left' ? lm[23] : lm[24]; 
+                const k = side === 'left' ? lm[25] : lm[26]; 
+                const a = side === 'left' ? lm[27] : lm[28]; 
 
                 const visThreshold = 0.5;
 
-                // BUG FIX: Pushups no longer require ankles, just shoulders to hips.
+                // PERFECTED CAMERA FIX: Pushups only need upper body + hips!
                 if (currentMode === 'pushups') {
                     isUserFullyVisible = (s.visibility > visThreshold && e.visibility > visThreshold && w.visibility > visThreshold && h.visibility > visThreshold);
                 } else {
@@ -720,25 +717,23 @@
                     setFeedback("Get fully in frame", "var(--accent-red)");
                     depthFill.style.height = "0%";
                     depthFill.style.backgroundColor = "var(--accent-red)";
-                    return; // Stop form calculation
+                    return; 
                 }
 
                 let activeAngle = 0;
                 let bodyAngle = 0;
 
                 if (currentMode === 'pushups') {
-                    activeAngle = calculateAngle(s, e, w); // Arm bend
-                    bodyAngle = calculateAngle(s, h, a); // Back straightness (uses ankle if seen, otherwise 180 assumed safe)
-                    // We removed ankle from mandatory visibility, so we only check straightness if ankle is somewhat visible
+                    activeAngle = calculateAngle(s, e, w);
+                    bodyAngle = calculateAngle(s, h, a); 
                     if (a.visibility > 0.3 && bodyAngle < 130) {
                         setFeedback("Keep back straight", "var(--accent-red)");
                         return;
                     }
                 } else {
-                    activeAngle = calculateAngle(h, k, a); // Knee bend
+                    activeAngle = calculateAngle(h, k, a);
                 }
 
-                // Depth Math
                 const range = config.upAngle - config.downAngle;
                 let depthPercent = ((config.upAngle - activeAngle) / range) * 100;
                 depthPercent = Math.max(0, Math.min(105, depthPercent));
@@ -747,7 +742,6 @@
                 const colorFactor = Math.min(depthPercent / 100, 1);
                 depthFill.style.backgroundColor = `hsl(${(1.0 - colorFactor) * 140}, 85%, 48%)`;
 
-                // Finite State Machine
                 if (positionState === "up") {
                     if (depthPercent >= config.targetPercent) {
                         positionState = "down";
@@ -762,7 +756,7 @@
                         sessionCount++;
                         estCalories += config.calPerRep; 
                         
-                        recordRepLocally(currentMode); // Save instantly
+                        recordRepLocally(currentMode);
 
                         document.getElementById('count-num').innerText = sessionCount;
                         setFeedback("Good Rep!", "var(--accent-green)");
@@ -848,7 +842,6 @@
         function startTimer() {
             timerInterval = setInterval(() => {
                 workoutSeconds++;
-                // Calorie Fix: Only add resting calories if user is in frame tracking
                 if (isUserFullyVisible) {
                     estCalories += 0.05; 
                 }
@@ -870,7 +863,6 @@
                 videoElement.srcObject = null;
             }
             
-            // Reload dashboard to show new lifetime stats instantly
             loadDashboardStats();
             switchScreen('main-menu');
         }
